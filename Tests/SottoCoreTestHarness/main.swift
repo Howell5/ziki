@@ -1235,6 +1235,45 @@ private func testOverlayCopyUsesThinkingForProcessing() throws {
     )
 }
 
+private func testAppVersionDisplayIncludesBuildAndCommit() throws {
+    try expect(
+        AppVersionPolicy.displayVersion(
+            shortVersion: "0.2.7",
+            buildNumber: "9",
+            commitHash: "abc1234"
+        ),
+        equals: "0.2.7 (9) · abc1234",
+        "full version display"
+    )
+    try expect(
+        AppVersionPolicy.displayVersion(
+            shortVersion: "0.2.7",
+            buildNumber: "9",
+            commitHash: nil
+        ),
+        equals: "0.2.7 (9)",
+        "version without commit"
+    )
+    try expect(
+        AppVersionPolicy.displayVersion(
+            shortVersion: "0.2.7",
+            buildNumber: " ",
+            commitHash: ""
+        ),
+        equals: "0.2.7",
+        "empty build and commit are omitted"
+    )
+    try expect(
+        AppVersionPolicy.displayVersion(
+            shortVersion: nil,
+            buildNumber: nil,
+            commitHash: nil
+        ),
+        equals: "未知版本",
+        "missing version fallback"
+    )
+}
+
 private func testInsertionHasNoOverlayPresentation() throws {
     try expect(
         DictationOverlayPresentation.resolve(.inserting),
@@ -1913,6 +1952,10 @@ private enum SottoCoreTestHarness {
             (
                 "Overlay copy uses Thinking for processing",
                 testOverlayCopyUsesThinkingForProcessing
+            ),
+            (
+                "App version display includes build and commit",
+                testAppVersionDisplayIncludesBuildAndCommit
             ),
             (
                 "Insertion has no overlay presentation",
