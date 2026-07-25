@@ -427,6 +427,10 @@ private struct AboutSettingsView: View {
                 .frame(width: 72, height: 72)
             Text("Sotto")
                 .font(.system(size: 30, weight: .bold, design: .rounded))
+            Text(versionDisplay)
+                .font(.system(.body, design: .monospaced))
+                .textSelection(.enabled)
+                .foregroundStyle(.primary)
             Text("A focused native voice-to-text tool for macOS.")
                 .foregroundStyle(.secondary)
             Text("首版只做听写、保守整理和可靠写回。")
@@ -434,6 +438,20 @@ private struct AboutSettingsView: View {
         }
         .padding(32)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    private var versionDisplay: String {
+        AppVersionPolicy.displayVersion(
+            shortVersion: Bundle.main.object(
+                forInfoDictionaryKey: "CFBundleShortVersionString"
+            ) as? String,
+            buildNumber: Bundle.main.object(
+                forInfoDictionaryKey: "CFBundleVersion"
+            ) as? String,
+            commitHash: Bundle.main.object(
+                forInfoDictionaryKey: "SottoBuildCommit"
+            ) as? String
+        )
     }
 }
 

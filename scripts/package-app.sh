@@ -58,6 +58,16 @@ install -m 0644 \
     "$ASSETS_DIR/SottoMenuBarTemplate.png" \
     "$STAGED_APP/Contents/Resources/SottoMenuBarTemplate.png"
 
+GIT_COMMIT="$(git -C "$PROJECT_ROOT" rev-parse --short HEAD 2>/dev/null || true)"
+if [[ -n "$GIT_COMMIT" ]]; then
+    /usr/libexec/PlistBuddy \
+        -c "Add :SottoBuildCommit string $GIT_COMMIT" \
+        "$STAGED_APP/Contents/Info.plist" 2>/dev/null \
+        || /usr/libexec/PlistBuddy \
+            -c "Set :SottoBuildCommit $GIT_COMMIT" \
+            "$STAGED_APP/Contents/Info.plist"
+fi
+
 printf 'Signing app bundle with identity %s…\n' "$SIGN_IDENTITY"
 case "$TIMESTAMP_MODE" in
     auto)
