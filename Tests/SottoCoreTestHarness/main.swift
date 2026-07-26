@@ -18,6 +18,109 @@ private func expect<T: Equatable>(
     }
 }
 
+private func testHistoryDocumentCodableRoundTrip() throws {
+    let entry = DictationHistoryEntry(
+        id: UUID(uuidString: "B8CB9168-2D09-45C8-B648-E641F939C91B")!,
+        text: "Ship the release",
+        createdAt: Date(timeIntervalSince1970: 4_000_000),
+        providerID: "fun-asr"
+    )
+    let document = DictationHistoryDocument(
+        schemaVersion: 1,
+        entries: [entry]
+    )
+
+    let encoded = try JSONEncoder().encode(document)
+    let decoded = try JSONDecoder().decode(
+        DictationHistoryDocument.self,
+        from: encoded
+    )
+
+    try expect(decoded, equals: document, "history document round trip")
+}
+
+private func testHistoryPolicySortsNewestFirst() throws {
+    let older = DictationHistoryEntry(
+        id: UUID(),
+        text: "older",
+        createdAt: Date(timeIntervalSince1970: 100),
+        providerID: "fun-asr"
+    )
+    let newer = DictationHistoryEntry(
+        id: UUID(),
+        text: "newer",
+        createdAt: Date(timeIntervalSince1970: 200),
+        providerID: "fun-asr"
+    )
+
+    try expect(
+        DictationHistoryPolicy.sortedNewestFirst([older, newer]),
+        equals: [newer, older],
+        "newest history first"
+    )
+}
+
+private func testHistoryPolicyExpiresExactlyAtThirtyDays() throws {
+    let now = Date(timeIntervalSince1970: 4_000_000)
+    let expired = DictationHistoryEntry(
+        id: UUID(),
+        text: "expired",
+        createdAt: now.addingTimeInterval(-30 * 24 * 60 * 60),
+        providerID: "fun-asr"
+    )
+    let retained = DictationHistoryEntry(
+        id: UUID(),
+        text: "retained",
+        createdAt: now.addingTimeInterval(-30 * 24 * 60 * 60 + 1),
+        providerID: "fun-asr"
+    )
+
+    try expect(
+        DictationHistoryPolicy.retained([expired, retained], now: now),
+        equals: [retained],
+        "exactly thirty days is expired"
+    )
+}
+
+private func testHistoryPolicySearchesCaseInsensitively() throws {
+    let matching = DictationHistoryEntry(
+        id: UUID(),
+        text: "Release SOTTO today",
+        createdAt: Date(),
+        providerID: "fun-asr"
+    )
+    let other = DictationHistoryEntry(
+        id: UUID(),
+        text: "unrelated",
+        createdAt: Date(),
+        providerID: "fun-asr"
+    )
+
+    try expect(
+        DictationHistoryPolicy.matching([matching, other], query: "sotto"),
+        equals: [matching],
+        "case-insensitive history search"
+    )
+    try expect(
+        DictationHistoryPolicy.matching([matching, other], query: "   "),
+        equals: [matching, other],
+        "blank history search returns all entries"
+    )
+}
+
+private func testHistoryPolicyUsesProviderFallback() throws {
+    try expect(
+        DictationHistoryPolicy.providerTitle(for: "fun-asr"),
+        equals: "Fun-ASR Realtime",
+        "known history provider title"
+    )
+    try expect(
+        DictationHistoryPolicy.providerTitle(for: "future-provider"),
+        equals: "未知语音服务",
+        "unknown history provider title"
+    )
+}
+
 private func testFnPressFromIdleBeginsListeningAndRequestsRecording() throws {
     var machine = DictationStateMachine()
 
@@ -1098,6 +1201,26 @@ private func testFunConfigurationRequiresWorkspaceHost() throws {
 private enum SottoCoreTestHarness {
     static func main() {
         let tests: [(String, () throws -> Void)] = [
+            (
+                "History document Codable round trip",
+                testHistoryDocumentCodableRoundTrip
+            ),
+            (
+                "History policy sorts newest first",
+                testHistoryPolicySortsNewestFirst
+            ),
+            (
+                "History policy expires exactly at thirty days",
+                testHistoryPolicyExpiresExactlyAtThirtyDays
+            ),
+            (
+                "History policy searches case insensitively",
+                testHistoryPolicySearchesCaseInsensitively
+            ),
+            (
+                "History policy uses provider fallback",
+                testHistoryPolicyUsesProviderFallback
+            ),
             (
                 "Fn press from idle begins listening and requests recording",
                 testFnPressFromIdleBeginsListeningAndRequestsRecording
