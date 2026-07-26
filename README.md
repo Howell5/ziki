@@ -11,7 +11,7 @@ Sotto 是一个专注于 macOS 的原生语音输入 App：单击 `fn` 开始说
 - 阿里百炼 Fun-ASR Realtime 实时识别
 - 同一 Workspace 与 API Key 调用 Qwen3.5 Flash 做保守整理
 - 通过系统 `⌘V` 写入当前键盘焦点；结果同时保留在剪贴板
-- API Key 存在 macOS Keychain，不保存录音和转写历史
+- API Key 存在 macOS Keychain；不保存录音，最终听写文本只在本机保留 30 天
 
 翻译、聊天、云端历史和模板系统不在当前范围内。
 
@@ -52,6 +52,7 @@ swift build
 
 ```bash
 swift run SottoCoreTestHarness
+swift run SottoAppTestHarness
 ```
 
 打包 release 应用：
@@ -156,6 +157,8 @@ Fun-ASR 在录音时持续发送 PCM 音频并接收实时结果；Qwen3.5 Flash
 
 听写时按 `Esc` 会取消本次录音。Sotto 对 `fn` 有约 120ms 的防误触判断；`fn` 与 F 功能键、方向键或其他组合键一起使用时不会触发听写。也可以从菜单栏选择 **Start Listening / Stop Listening**。
 
+每次有效听写的最终文本会先写入本机历史，再尝试系统粘贴。可从设置侧边栏的 **历史** 或菜单栏 **Open History…** 搜索、复制或删除记录；复制只写入剪贴板，不会替你再次粘贴。历史固定保留 30 天，也可手动清空全部。
+
 如果单击 `fn` 完全没有反应，优先检查辅助功能权限，并确认 macOS 没有把单独的 `fn` 配置为系统听写、输入法切换或表情面板。
 
 如果按 `fn` 时同时打开表情面板，请进入“系统设置 → 键盘”，把“按下 fn／🌐 键时”改为“无操作”。macOS 的系统动作和 Sotto 的全局快捷键是两个独立监听，必须先清除这一快捷键冲突。
@@ -164,7 +167,9 @@ Fun-ASR 在录音时持续发送 PCM 音频并接收实时结果；Qwen3.5 Flash
 
 - 音频发送到所选区域的阿里云 Fun-ASR Realtime。
 - 启用整理时，转写文本会发送到同一百炼 Workspace 的 Qwen3.5 Flash。
-- Sotto 当前不保存录音或转写历史，也不会把完整口述写入诊断日志。
+- Sotto 不保存录音、实时识别片段或整理前原文；整理后的最终文本在本机 Application Support 中保存 30 天。
+- 历史不包含目标 App、窗口、PID、粘贴状态或复制状态，也不会同步到云端。
+- Sotto 不会把完整口述写入诊断日志。
 - 第三方服务的数据保留与训练政策由各自条款决定。
 
 ## 分发状态

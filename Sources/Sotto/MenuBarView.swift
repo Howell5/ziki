@@ -33,6 +33,10 @@ struct MenuBarView: View {
         .keyboardShortcut("c", modifiers: [.command, .shift])
         .disabled(model.lastResult == nil)
 
+        Button("Open History…") {
+            model.openHistory()
+        }
+
         Divider()
 
         Button("Open Settings…") {

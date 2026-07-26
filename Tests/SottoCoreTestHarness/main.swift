@@ -18,6 +18,599 @@ private func expect<T: Equatable>(
     }
 }
 
+private func testHistoryDocumentCodableRoundTrip() throws {
+    let entry = DictationHistoryEntry(
+        id: UUID(uuidString: "B8CB9168-2D09-45C8-B648-E641F939C91B")!,
+        text: "Ship the release",
+        createdAt: Date(timeIntervalSince1970: 4_000_000),
+        providerID: "fun-asr"
+    )
+    let document = DictationHistoryDocument(
+        schemaVersion: 1,
+        entries: [entry]
+    )
+
+    let encoded = try JSONEncoder().encode(document)
+    let decoded = try JSONDecoder().decode(
+        DictationHistoryDocument.self,
+        from: encoded
+    )
+
+    try expect(decoded, equals: document, "history document round trip")
+}
+
+private func testHistoryPolicySortsNewestFirst() throws {
+    let older = DictationHistoryEntry(
+        id: UUID(),
+        text: "older",
+        createdAt: Date(timeIntervalSince1970: 100),
+        providerID: "fun-asr"
+    )
+    let newer = DictationHistoryEntry(
+        id: UUID(),
+        text: "newer",
+        createdAt: Date(timeIntervalSince1970: 200),
+        providerID: "fun-asr"
+    )
+
+    try expect(
+        DictationHistoryPolicy.sortedNewestFirst([older, newer]),
+        equals: [newer, older],
+        "newest history first"
+    )
+}
+
+private func testHistoryPolicyExpiresExactlyAtThirtyDays() throws {
+    let now = Date(timeIntervalSince1970: 4_000_000)
+    let expired = DictationHistoryEntry(
+        id: UUID(),
+        text: "expired",
+        createdAt: now.addingTimeInterval(-30 * 24 * 60 * 60),
+        providerID: "fun-asr"
+    )
+    let retained = DictationHistoryEntry(
+        id: UUID(),
+        text: "retained",
+        createdAt: now.addingTimeInterval(-30 * 24 * 60 * 60 + 1),
+        providerID: "fun-asr"
+    )
+
+    try expect(
+        DictationHistoryPolicy.retained([expired, retained], now: now),
+        equals: [retained],
+        "exactly thirty days is expired"
+    )
+}
+
+private func testHistoryPolicySearchesCaseInsensitively() throws {
+    let matching = DictationHistoryEntry(
+        id: UUID(),
+        text: "Release SOTTO today",
+        createdAt: Date(),
+        providerID: "fun-asr"
+    )
+    let other = DictationHistoryEntry(
+        id: UUID(),
+        text: "unrelated",
+        createdAt: Date(),
+        providerID: "fun-asr"
+    )
+
+    try expect(
+        DictationHistoryPolicy.matching([matching, other], query: "sotto"),
+        equals: [matching],
+        "case-insensitive history search"
+    )
+    try expect(
+        DictationHistoryPolicy.matching([matching, other], query: "   "),
+        equals: [matching, other],
+        "blank history search returns all entries"
+    )
+}
+
+private func testHistoryPolicyUsesProviderFallback() throws {
+    try expect(
+        DictationHistoryPolicy.providerTitle(for: "fun-asr"),
+        equals: "Fun-ASR Realtime",
+        "known history provider title"
+    )
+    try expect(
+        DictationHistoryPolicy.providerTitle(for: "future-provider"),
+        equals: "未知语音服务",
+        "unknown history provider title"
+    )
+}
+
+@MainActor
+private final class ManualHistoryScheduler:
+    DictationHistoryExpirationScheduling
+{
+    private(set) var scheduledDate: Date?
+    private var action: (@MainActor () -> Void)?
+
+    func schedule(at date: Date, action: @escaping @MainActor () -> Void) {
+        scheduledDate = date
+        self.action = action
+    }
+
+    func cancel() {
+        scheduledDate = nil
+        action = nil
+    }
+
+    func fire() {
+        let pendingAction = action
+        scheduledDate = nil
+        action = nil
+        pendingAction?()
+    }
+}
+
+@MainActor
+private final class HistoryWriter {
+    var shouldFail = false
+    private(set) var writes: [Data] = []
+
+    func write(_ data: Data, to url: URL) throws {
+        if shouldFail {
+            throw TestFailure(description: "injected history write failure")
+        }
+        writes.append(data)
+        try data.write(to: url, options: .atomic)
+    }
+}
+
+@MainActor
+private final class HistoryReader {
+    var shouldFail = false
+
+    func read(from url: URL) throws -> Data {
+        if shouldFail {
+            throw TestFailure(description: "injected history read failure")
+        }
+        return try Data(contentsOf: url)
+    }
+}
+
+@MainActor
+private final class HistoryMover {
+    var shouldFail = false
+    private(set) var moveCount = 0
+
+    func move(from sourceURL: URL, to destinationURL: URL) throws {
+        moveCount += 1
+        if shouldFail {
+            throw TestFailure(description: "injected history move failure")
+        }
+        try FileManager.default.moveItem(
+            at: sourceURL,
+            to: destinationURL
+        )
+    }
+}
+
+private func withTemporaryHistoryFile(
+    _ body: (URL) throws -> Void
+) throws {
+    let directory = FileManager.default.temporaryDirectory
+        .appendingPathComponent("sotto-history-\(UUID().uuidString)")
+    try FileManager.default.createDirectory(
+        at: directory,
+        withIntermediateDirectories: true
+    )
+    defer { try? FileManager.default.removeItem(at: directory) }
+    try body(directory.appendingPathComponent("dictation-history.json"))
+}
+
+private func writeHistoryDocument(
+    _ entries: [DictationHistoryEntry],
+    to fileURL: URL
+) throws {
+    let document = DictationHistoryDocument(
+        schemaVersion: DictationHistoryPolicy.schemaVersion,
+        entries: entries
+    )
+    let encoder = JSONEncoder()
+    encoder.dateEncodingStrategy = .iso8601
+    try encoder.encode(document).write(to: fileURL, options: .atomic)
+}
+
+private func readHistoryDocument(
+    from fileURL: URL
+) throws -> DictationHistoryDocument {
+    let decoder = JSONDecoder()
+    decoder.dateDecodingStrategy = .iso8601
+    return try decoder.decode(
+        DictationHistoryDocument.self,
+        from: Data(contentsOf: fileURL)
+    )
+}
+
+private func testHistoryStorePersistsSchemaAndNewestFirstEntries() throws {
+    try withTemporaryHistoryFile { fileURL in
+        try MainActor.assumeIsolated {
+            var now = Date(timeIntervalSince1970: 10_000)
+            let scheduler = ManualHistoryScheduler()
+            let store = DictationHistoryStore(
+                fileURL: fileURL,
+                now: { now },
+                scheduler: scheduler
+            )
+
+            _ = store.append(text: "first", providerID: "fun-asr")
+            now = Date(timeIntervalSince1970: 20_000)
+            _ = store.append(text: "second", providerID: "mimo")
+
+            try expect(
+                store.entries.map(\.text),
+                equals: ["second", "first"],
+                "store entries are newest first"
+            )
+            let document = try readHistoryDocument(from: fileURL)
+            try expect(
+                document.schemaVersion,
+                equals: 1,
+                "persisted history schema"
+            )
+            try expect(
+                document.entries.map(\.text),
+                equals: ["second", "first"],
+                "persisted history entries"
+            )
+        }
+    }
+}
+
+private func testHistoryStorePurgesExpiredEntriesOnStartup() throws {
+    try withTemporaryHistoryFile { fileURL in
+        let now = Date(timeIntervalSince1970: 4_000_000)
+        let expired = DictationHistoryEntry(
+            id: UUID(),
+            text: "expired",
+            createdAt: now.addingTimeInterval(
+                -DictationHistoryPolicy.retentionInterval
+            ),
+            providerID: "fun-asr"
+        )
+        let retained = DictationHistoryEntry(
+            id: UUID(),
+            text: "retained",
+            createdAt: now.addingTimeInterval(-100),
+            providerID: "fun-asr"
+        )
+        try writeHistoryDocument([expired, retained], to: fileURL)
+
+        try MainActor.assumeIsolated {
+            let scheduler = ManualHistoryScheduler()
+            let store = DictationHistoryStore(
+                fileURL: fileURL,
+                now: { now },
+                scheduler: scheduler
+            )
+
+            try expect(
+                store.entries,
+                equals: [retained],
+                "startup removes expired history"
+            )
+            try expect(
+                try readHistoryDocument(from: fileURL).entries,
+                equals: [retained],
+                "startup persists retained history"
+            )
+        }
+    }
+}
+
+private func testHistoryStorePurgesExpiredEntriesOnEveryAppend() throws {
+    try withTemporaryHistoryFile { fileURL in
+        try MainActor.assumeIsolated {
+            var now = Date(timeIntervalSince1970: 10_000)
+            let store = DictationHistoryStore(
+                fileURL: fileURL,
+                now: { now },
+                scheduler: ManualHistoryScheduler()
+            )
+            _ = store.append(text: "old", providerID: "fun-asr")
+
+            now.addTimeInterval(
+                DictationHistoryPolicy.retentionInterval + 1
+            )
+            _ = store.append(text: "new", providerID: "fun-asr")
+
+            try expect(
+                store.entries.map(\.text),
+                equals: ["new"],
+                "append purges expired history"
+            )
+        }
+    }
+}
+
+private func testHistoryStoreBacksUpCorruptJSON() throws {
+    try withTemporaryHistoryFile { fileURL in
+        try Data("not-json".utf8).write(to: fileURL)
+
+        try MainActor.assumeIsolated {
+            let store = DictationHistoryStore(
+                fileURL: fileURL,
+                scheduler: ManualHistoryScheduler()
+            )
+            try expect(store.entries, equals: [], "corrupt history resets")
+            try expect(
+                store.errorMessage != nil,
+                equals: true,
+                "corrupt history surfaces an inline error"
+            )
+        }
+
+        let backups = try FileManager.default.contentsOfDirectory(
+            at: fileURL.deletingLastPathComponent(),
+            includingPropertiesForKeys: nil
+        ).filter {
+            $0.lastPathComponent.hasPrefix("dictation-history.corrupt-")
+                && $0.pathExtension == "json"
+        }
+        try expect(backups.count, equals: 1, "corrupt history backup count")
+    }
+}
+
+private func testHistoryStoreDoesNotQuarantineOrOverwriteUnreadableFile() throws {
+    try withTemporaryHistoryFile { fileURL in
+        let now = Date(timeIntervalSince1970: 4_000_000)
+        let existing = DictationHistoryEntry(
+            id: UUID(),
+            text: "existing",
+            createdAt: now.addingTimeInterval(-1),
+            providerID: "fun-asr"
+        )
+        try writeHistoryDocument([existing], to: fileURL)
+        let originalData = try Data(contentsOf: fileURL)
+
+        try MainActor.assumeIsolated {
+            let reader = HistoryReader()
+            reader.shouldFail = true
+            let mover = HistoryMover()
+            let store = DictationHistoryStore(
+                fileURL: fileURL,
+                now: { now },
+                readData: reader.read,
+                moveItem: mover.move,
+                scheduler: ManualHistoryScheduler()
+            )
+
+            let saved = store.append(
+                text: "pending",
+                providerID: "fun-asr"
+            )
+
+            try expect(saved, equals: false, "unreadable append result")
+            try expect(mover.moveCount, equals: 0, "I/O failure move count")
+            try expect(
+                try Data(contentsOf: fileURL),
+                equals: originalData,
+                "unreadable history remains untouched"
+            )
+            try expect(
+                store.entries.map(\.text),
+                equals: ["pending"],
+                "unreadable append remains in memory"
+            )
+
+            reader.shouldFail = false
+            _ = store.append(text: "second", providerID: "fun-asr")
+
+            try expect(
+                Set(try readHistoryDocument(from: fileURL).entries.map(\.text)),
+                equals: Set(["existing", "pending", "second"]),
+                "recovered read merges pending entries"
+            )
+        }
+    }
+}
+
+private func testHistoryStoreDoesNotOverwriteCorruptFileWhenBackupFails() throws {
+    try withTemporaryHistoryFile { fileURL in
+        let corruptData = Data("not-json".utf8)
+        try corruptData.write(to: fileURL)
+
+        try MainActor.assumeIsolated {
+            let mover = HistoryMover()
+            mover.shouldFail = true
+            let store = DictationHistoryStore(
+                fileURL: fileURL,
+                moveItem: mover.move,
+                scheduler: ManualHistoryScheduler()
+            )
+
+            let saved = store.append(
+                text: "pending",
+                providerID: "fun-asr"
+            )
+
+            try expect(saved, equals: false, "failed quarantine append result")
+            try expect(mover.moveCount >= 1, equals: true, "quarantine attempted")
+            try expect(
+                try Data(contentsOf: fileURL),
+                equals: corruptData,
+                "unbacked corrupt history remains untouched"
+            )
+            try expect(
+                store.entries.map(\.text),
+                equals: ["pending"],
+                "failed quarantine append remains in memory"
+            )
+        }
+    }
+}
+
+private func testHistoryStorePersistsPendingEntriesWhenMissingFileRecovers() throws {
+    try withTemporaryHistoryFile { fileURL in
+        try writeHistoryDocument([], to: fileURL)
+
+        try MainActor.assumeIsolated {
+            var now = Date(timeIntervalSince1970: 5_000_000)
+            let reader = HistoryReader()
+            reader.shouldFail = true
+            let scheduler = ManualHistoryScheduler()
+            let store = DictationHistoryStore(
+                fileURL: fileURL,
+                now: { now },
+                readData: reader.read,
+                scheduler: scheduler
+            )
+            _ = store.append(text: "pending", providerID: "fun-asr")
+
+            try FileManager.default.removeItem(at: fileURL)
+            reader.shouldFail = false
+            now.addTimeInterval(5 * 60)
+            scheduler.fire()
+
+            try expect(
+                try readHistoryDocument(from: fileURL).entries.map(\.text),
+                equals: ["pending"],
+                "missing-file recovery persists pending history"
+            )
+        }
+    }
+}
+
+private func testHistoryStoreKeepsAppendInMemoryAfterWriteFailure() throws {
+    try withTemporaryHistoryFile { fileURL in
+        try MainActor.assumeIsolated {
+            let writer = HistoryWriter()
+            writer.shouldFail = true
+            let store = DictationHistoryStore(
+                fileURL: fileURL,
+                writeData: writer.write,
+                scheduler: ManualHistoryScheduler()
+            )
+
+            let saved = store.append(text: "recover me", providerID: "fun-asr")
+
+            try expect(saved, equals: false, "append persistence result")
+            try expect(
+                store.entries.map(\.text),
+                equals: ["recover me"],
+                "failed append remains in memory"
+            )
+            try expect(
+                store.errorMessage != nil,
+                equals: true,
+                "failed append surfaces an inline error"
+            )
+        }
+    }
+}
+
+private func testHistoryStoreRollsBackDeleteAndClearAfterWriteFailure() throws {
+    try withTemporaryHistoryFile { fileURL in
+        try MainActor.assumeIsolated {
+            let writer = HistoryWriter()
+            let store = DictationHistoryStore(
+                fileURL: fileURL,
+                writeData: writer.write,
+                scheduler: ManualHistoryScheduler()
+            )
+            _ = store.append(text: "one", providerID: "fun-asr")
+            _ = store.append(text: "two", providerID: "fun-asr")
+            let originalEntries = store.entries
+            writer.shouldFail = true
+
+            let deleted = store.delete(id: originalEntries[0].id)
+            try expect(deleted, equals: false, "delete persistence result")
+            try expect(
+                store.entries,
+                equals: originalEntries,
+                "failed delete rolls back memory"
+            )
+
+            let cleared = store.clearAll()
+            try expect(cleared, equals: false, "clear persistence result")
+            try expect(
+                store.entries,
+                equals: originalEntries,
+                "failed clear rolls back memory"
+            )
+        }
+    }
+}
+
+private func testHistoryStoreScheduledExpiryPersistsRemoval() throws {
+    try withTemporaryHistoryFile { fileURL in
+        try MainActor.assumeIsolated {
+            var now = Date(timeIntervalSince1970: 50_000)
+            let scheduler = ManualHistoryScheduler()
+            let store = DictationHistoryStore(
+                fileURL: fileURL,
+                now: { now },
+                scheduler: scheduler
+            )
+            _ = store.append(text: "expires", providerID: "fun-asr")
+            let expectedExpiration = now.addingTimeInterval(
+                DictationHistoryPolicy.retentionInterval
+            )
+            try expect(
+                scheduler.scheduledDate,
+                equals: expectedExpiration,
+                "earliest history expiration is scheduled"
+            )
+
+            now = expectedExpiration
+            scheduler.fire()
+
+            try expect(store.entries, equals: [], "scheduled expiry removes entry")
+            try expect(
+                try readHistoryDocument(from: fileURL).entries,
+                equals: [],
+                "scheduled expiry persists removal"
+            )
+        }
+    }
+}
+
+private func testHistoryStoreRetriesFailedScheduledExpiryInFiveMinutes() throws {
+    try withTemporaryHistoryFile { fileURL in
+        try MainActor.assumeIsolated {
+            var now = Date(timeIntervalSince1970: 90_000)
+            let scheduler = ManualHistoryScheduler()
+            let writer = HistoryWriter()
+            let store = DictationHistoryStore(
+                fileURL: fileURL,
+                now: { now },
+                writeData: writer.write,
+                scheduler: scheduler
+            )
+            _ = store.append(text: "expires", providerID: "fun-asr")
+            now.addTimeInterval(DictationHistoryPolicy.retentionInterval)
+            writer.shouldFail = true
+
+            scheduler.fire()
+
+            try expect(
+                store.entries,
+                equals: [],
+                "failed expiry write keeps filtered memory"
+            )
+            try expect(
+                scheduler.scheduledDate,
+                equals: now.addingTimeInterval(5 * 60),
+                "failed expiry schedules five-minute retry"
+            )
+
+            writer.shouldFail = false
+            now.addTimeInterval(5 * 60)
+            scheduler.fire()
+
+            try expect(
+                try readHistoryDocument(from: fileURL).entries,
+                equals: [],
+                "expiry retry persists filtered memory"
+            )
+        }
+    }
+}
+
 private func testFnPressFromIdleBeginsListeningAndRequestsRecording() throws {
     var machine = DictationStateMachine()
 
@@ -116,8 +709,8 @@ private func testPolishedTranscriptMovesToInsertion() throws {
     try expect(machine.phase, equals: .inserting, "phase after cleanup")
     try expect(
         effects,
-        equals: [.insertText("明天下午三点开会")],
-        "effects after cleanup"
+        equals: [.deliverFinalText("明天下午三点开会")],
+        "single final-output effect after cleanup"
     )
 }
 
@@ -1098,6 +1691,70 @@ private func testFunConfigurationRequiresWorkspaceHost() throws {
 private enum SottoCoreTestHarness {
     static func main() {
         let tests: [(String, () throws -> Void)] = [
+            (
+                "History document Codable round trip",
+                testHistoryDocumentCodableRoundTrip
+            ),
+            (
+                "History policy sorts newest first",
+                testHistoryPolicySortsNewestFirst
+            ),
+            (
+                "History policy expires exactly at thirty days",
+                testHistoryPolicyExpiresExactlyAtThirtyDays
+            ),
+            (
+                "History policy searches case insensitively",
+                testHistoryPolicySearchesCaseInsensitively
+            ),
+            (
+                "History policy uses provider fallback",
+                testHistoryPolicyUsesProviderFallback
+            ),
+            (
+                "History store persists schema and newest-first entries",
+                testHistoryStorePersistsSchemaAndNewestFirstEntries
+            ),
+            (
+                "History store purges expired entries on startup",
+                testHistoryStorePurgesExpiredEntriesOnStartup
+            ),
+            (
+                "History store purges expired entries on every append",
+                testHistoryStorePurgesExpiredEntriesOnEveryAppend
+            ),
+            (
+                "History store backs up corrupt JSON",
+                testHistoryStoreBacksUpCorruptJSON
+            ),
+            (
+                "History store does not quarantine or overwrite unreadable file",
+                testHistoryStoreDoesNotQuarantineOrOverwriteUnreadableFile
+            ),
+            (
+                "History store does not overwrite corrupt file when backup fails",
+                testHistoryStoreDoesNotOverwriteCorruptFileWhenBackupFails
+            ),
+            (
+                "History store persists pending entries when missing file recovers",
+                testHistoryStorePersistsPendingEntriesWhenMissingFileRecovers
+            ),
+            (
+                "History store keeps append in memory after write failure",
+                testHistoryStoreKeepsAppendInMemoryAfterWriteFailure
+            ),
+            (
+                "History store rolls back delete and clear after write failure",
+                testHistoryStoreRollsBackDeleteAndClearAfterWriteFailure
+            ),
+            (
+                "History store scheduled expiry persists removal",
+                testHistoryStoreScheduledExpiryPersistsRemoval
+            ),
+            (
+                "History store retries failed scheduled expiry in five minutes",
+                testHistoryStoreRetriesFailedScheduledExpiryInFiveMinutes
+            ),
             (
                 "Fn press from idle begins listening and requests recording",
                 testFnPressFromIdleBeginsListeningAndRequestsRecording

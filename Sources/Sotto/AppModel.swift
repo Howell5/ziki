@@ -2,6 +2,7 @@ import AppKit
 import Combine
 import Foundation
 import OSLog
+import SottoAppCore
 import SottoCore
 
 enum SpeechConnectionTestState: Equatable {
@@ -25,6 +26,17 @@ private enum BailianConnectionTestError: LocalizedError {
         case let .unexpectedCleanup(text):
             "Qwen 改口验证结果不符合预期：\(text)"
         }
+    }
+}
+
+@MainActor
+private final class AppModelInsertionReadiness:
+    DictationInsertionReadiness
+{
+    var wait: (() async -> Bool)?
+
+    func waitUntilReady() async -> Bool {
+        await wait?() ?? false
     }
 }
 
@@ -56,14 +68,22 @@ final class AppModel: ObservableObject {
     let settings: SettingsStore
     let permissions: PermissionCenter
     let keychain: KeychainStore
+    let historyStore: DictationHistoryStore
+    let settingsNavigation: SettingsNavigationState
 
     private var stateMachine = DictationStateMachine()
     private weak var overlayController: OverlayPanelController?
-    private weak var settingsWindowController: SettingsWindowController?
+    private let settingsNavigationCoordinator: SettingsNavigationCoordinator
     private let microphone = MicrophoneCapture()
     private let audioTransport = AudioTransportRunner()
     private let textInsertion = TextInsertionService()
     private let transcriptGuard = TranscriptGuard()
+    private let insertionReadiness = AppModelInsertionReadiness()
+    private lazy var outputCoordinator = DictationOutputCoordinator(
+        history: historyStore,
+        readiness: insertionReadiness,
+        inserter: textInsertion
+    )
 
     private var activeSession: (any ASRSession)?
     private var activeSessionID: UUID?
@@ -75,17 +95,29 @@ final class AppModel: ObservableObject {
     private var connectionTestSession: (any ASRSession)?
     private var connectionTestID: UUID?
     private var activeSessionHasRecognizedContent = false
+    private var pendingHistoryProviderID: String?
     private var cachedCredentials: [KeychainStore.Credential: String] = [:]
     private var loadedCredentials = Set<KeychainStore.Credential>()
 
     init(
         settings: SettingsStore = SettingsStore(),
         permissions: PermissionCenter = PermissionCenter(),
-        keychain: KeychainStore = KeychainStore()
+        keychain: KeychainStore = KeychainStore(),
+        historyStore: DictationHistoryStore = DictationHistoryStore(),
+        settingsNavigation: SettingsNavigationState = SettingsNavigationState()
     ) {
         self.settings = settings
         self.permissions = permissions
         self.keychain = keychain
+        self.historyStore = historyStore
+        self.settingsNavigation = settingsNavigation
+        settingsNavigationCoordinator = SettingsNavigationCoordinator(
+            state: settingsNavigation,
+            historyPurger: historyStore
+        )
+        insertionReadiness.wait = { [weak self] in
+            await self?.waitUntilReadyForInsertion() ?? false
+        }
     }
 
     var providerSummary: String {
@@ -109,7 +141,7 @@ final class AppModel: ObservableObject {
     }
 
     func attachSettingsWindow(_ controller: SettingsWindowController) {
-        settingsWindowController = controller
+        settingsNavigationCoordinator.attach(controller)
     }
 
     func bootstrap() {
@@ -164,13 +196,17 @@ final class AppModel: ObservableObject {
     }
 
     func openSettings() {
-        settingsWindowController?.show()
+        settingsNavigationCoordinator.openSettings()
+    }
+
+    func openHistory() {
+        settingsNavigationCoordinator.openHistory()
     }
 
     func restoreSettingsAfterPermissionPrompt() {
         permissions.completeSettingsRestoration()
         permissions.refresh()
-        settingsWindowController?.show()
+        settingsNavigationCoordinator.openSettings()
     }
 
     @discardableResult
@@ -492,9 +528,9 @@ final class AppModel: ObservableObject {
                     await self?.polishTranscript(text)
                 }
 
-            case let .insertText(text):
+            case let .deliverFinalText(text):
                 Task { [weak self] in
-                    await self?.insertText(text)
+                    await self?.deliverFinalText(text)
                 }
 
             case let .copyToClipboard(text):
@@ -527,6 +563,7 @@ final class AppModel: ObservableObject {
         let sessionID = UUID()
         activeSessionID = sessionID
         activeSessionHasRecognizedContent = false
+        pendingHistoryProviderID = provider.rawValue
         let pipe = AsyncStream<Data>.makeStream(bufferingPolicy: .unbounded)
         pcmContinuation = pipe.continuation
 
@@ -744,30 +781,23 @@ final class AppModel: ObservableObject {
         apply(.transcriptPolished(finalText))
     }
 
-    private func insertText(_ finalText: String) async {
+    private func waitUntilReadyForInsertion() async -> Bool {
         if let overlayController {
             let isOverlayDismissed =
                 await overlayController.waitUntilDismissedForInsertion()
-            guard phase == .inserting else { return }
-            guard isOverlayDismissed else {
-                let message = ClipboardRecoveryCopy.message(
-                    reason: "无法关闭听写状态"
-                )
-                lastResult = finalText
-                statusDetail = message
-                apply(
-                    .operationFailed(
-                        message: message,
-                        recoveryText: finalText
-                    )
-                )
-                return
-            }
+            guard isOverlayDismissed else { return false }
         }
-        guard phase == .inserting else { return }
+        return phase == .inserting
+    }
 
+    private func deliverFinalText(_ finalText: String) async {
         lastResult = finalText
-        let outcome = await textInsertion.insert(finalText)
+        let providerID = pendingHistoryProviderID ?? "unknown"
+        let outcome = await outputCoordinator.deliver(
+            text: finalText,
+            providerID: providerID
+        )
+        pendingHistoryProviderID = nil
 
         switch outcome {
         case .inserted:
@@ -776,6 +806,17 @@ final class AppModel: ObservableObject {
         case let .copied(message):
             statusDetail = message
             apply(.operationFailed(message: message, recoveryText: finalText))
+        case nil:
+            let message = ClipboardRecoveryCopy.message(
+                reason: "无法关闭听写状态"
+            )
+            statusDetail = message
+            apply(
+                .operationFailed(
+                    message: message,
+                    recoveryText: finalText
+                )
+            )
         }
     }
 
@@ -820,6 +861,7 @@ final class AppModel: ObservableObject {
         activeSessionID = nil
         activeSession = nil
         activeSessionHasRecognizedContent = false
+        pendingHistoryProviderID = nil
 
         _ = microphone.stop()
         pcmContinuation?.finish()
