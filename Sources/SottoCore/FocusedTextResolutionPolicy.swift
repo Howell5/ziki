@@ -206,12 +206,11 @@ public enum CurrentFocusValidationSource: Equatable, Sendable {
 
 public enum CurrentFocusValidationSourcePolicy {
     public static func choose(
-        systemWideFocusedProcessID: Int32?,
-        targetProcessID: Int32,
+        systemWideFocusIsInTargetFamily: Bool?,
         applicationFocusIsAvailable: Bool
     ) -> CurrentFocusValidationSource {
-        if let systemWideFocusedProcessID {
-            return systemWideFocusedProcessID == targetProcessID
+        if let systemWideFocusIsInTargetFamily {
+            return systemWideFocusIsInTargetFamily
                 ? .systemWide
                 : .reject
         }
@@ -221,12 +220,46 @@ public enum CurrentFocusValidationSourcePolicy {
     }
 }
 
+public enum ProcessFamilyPolicy {
+    public static func isMember(
+        processID: Int32,
+        familyRootProcessID: Int32,
+        parentOf: (Int32) -> Int32?
+    ) -> Bool {
+        if processID == familyRootProcessID {
+            return true
+        }
+        var currentProcessID = processID
+        var visitedProcessIDs: Set<Int32> = [processID]
+        for _ in 0..<8 {
+            guard let parentProcessID = parentOf(currentProcessID),
+                  parentProcessID > 1,
+                  visitedProcessIDs.insert(parentProcessID).inserted
+            else {
+                return false
+            }
+            if parentProcessID == familyRootProcessID {
+                return true
+            }
+            currentProcessID = parentProcessID
+        }
+        return false
+    }
+}
+
 public enum FocusProcessFreshnessPolicy {
     public static func isCurrent(
         resolvedProcessID: Int32,
-        eligibleFrontmostProcessIDs: [Int32]
+        eligibleFrontmostProcessIDs: [Int32],
+        parentOf: (Int32) -> Int32?
     ) -> Bool {
-        eligibleFrontmostProcessIDs.contains(resolvedProcessID)
+        eligibleFrontmostProcessIDs.contains {
+            ProcessFamilyPolicy.isMember(
+                processID: resolvedProcessID,
+                familyRootProcessID: $0,
+                parentOf: parentOf
+            )
+        }
     }
 }
 

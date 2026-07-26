@@ -1181,8 +1181,7 @@ private func testResolvedTargetAcceptsFocusedDescendantAtCommit() throws {
 private func testCommitFocusValidationTreatsSystemFocusAsAuthoritative() throws {
     try expect(
         CurrentFocusValidationSourcePolicy.choose(
-            systemWideFocusedProcessID: 101,
-            targetProcessID: 101,
+            systemWideFocusIsInTargetFamily: true,
             applicationFocusIsAvailable: true
         ),
         equals: .systemWide,
@@ -1190,8 +1189,7 @@ private func testCommitFocusValidationTreatsSystemFocusAsAuthoritative() throws 
     )
     try expect(
         CurrentFocusValidationSourcePolicy.choose(
-            systemWideFocusedProcessID: 202,
-            targetProcessID: 101,
+            systemWideFocusIsInTargetFamily: false,
             applicationFocusIsAvailable: true
         ),
         equals: .reject,
@@ -1199,8 +1197,7 @@ private func testCommitFocusValidationTreatsSystemFocusAsAuthoritative() throws 
     )
     try expect(
         CurrentFocusValidationSourcePolicy.choose(
-            systemWideFocusedProcessID: nil,
-            targetProcessID: 101,
+            systemWideFocusIsInTargetFamily: nil,
             applicationFocusIsAvailable: true
         ),
         equals: .application,
@@ -1209,10 +1206,12 @@ private func testCommitFocusValidationTreatsSystemFocusAsAuthoritative() throws 
 }
 
 private func testFocusProcessFreshnessRejectsStaleApplication() throws {
+    let noParents: (Int32) -> Int32? = { _ in nil }
     try expect(
         FocusProcessFreshnessPolicy.isCurrent(
             resolvedProcessID: 101,
-            eligibleFrontmostProcessIDs: [202]
+            eligibleFrontmostProcessIDs: [202],
+            parentOf: noParents
         ),
         equals: false,
         "stale resolved process"
@@ -1220,10 +1219,49 @@ private func testFocusProcessFreshnessRejectsStaleApplication() throws {
     try expect(
         FocusProcessFreshnessPolicy.isCurrent(
             resolvedProcessID: 61_425,
-            eligibleFrontmostProcessIDs: [61_875, 61_425]
+            eligibleFrontmostProcessIDs: [61_875, 61_425],
+            parentOf: noParents
         ),
         equals: true,
         "accessory helper owner process"
+    )
+}
+
+private func testFocusProcessFreshnessAcceptsRendererDescendant() throws {
+    // Electron-style tree: renderer 500 -> main app 300 -> launchd 1.
+    let electronParents: (Int32) -> Int32? = { pid in
+        switch pid {
+        case 500: 300
+        case 300: 1
+        default: nil
+        }
+    }
+    try expect(
+        FocusProcessFreshnessPolicy.isCurrent(
+            resolvedProcessID: 500,
+            eligibleFrontmostProcessIDs: [300],
+            parentOf: electronParents
+        ),
+        equals: true,
+        "renderer descendant of frontmost app"
+    )
+    try expect(
+        FocusProcessFreshnessPolicy.isCurrent(
+            resolvedProcessID: 999,
+            eligibleFrontmostProcessIDs: [300],
+            parentOf: electronParents
+        ),
+        equals: false,
+        "unrelated process rejected"
+    )
+    try expect(
+        ProcessFamilyPolicy.isMember(
+            processID: 500,
+            familyRootProcessID: 500,
+            parentOf: electronParents
+        ),
+        equals: true,
+        "process is member of its own family"
     )
 }
 
@@ -1948,6 +1986,10 @@ private enum SottoCoreTestHarness {
             (
                 "Focus process freshness rejects stale application",
                 testFocusProcessFreshnessRejectsStaleApplication
+            ),
+            (
+                "Focus process freshness accepts renderer descendant",
+                testFocusProcessFreshnessAcceptsRendererDescendant
             ),
             (
                 "Overlay copy uses Thinking for processing",
