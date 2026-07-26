@@ -167,7 +167,10 @@ final class OverlayPanelController: AnyObject {
         for presentation: DictationOverlayPresentation
     ) -> NSSize {
         switch presentation {
-        case .listening: NSSize(width: 280, height: 52)
+        case .listening:
+            model.audioInputNotice == nil
+                ? NSSize(width: 280, height: 52)
+                : NSSize(width: 380, height: 58)
         case .thinking: NSSize(width: 164, height: 44)
         case .cancelled: NSSize(width: 124, height: 40)
         case .error: NSSize(width: 380, height: 56)
@@ -218,8 +221,15 @@ private struct OverlayView: View {
             Circle()
                 .fill(Color(hex: 0x9EC39A))
                 .frame(width: 8, height: 8)
-            Text(DictationOverlayCopy.listening)
-                .font(.system(size: 13, weight: .semibold))
+            VStack(alignment: .leading, spacing: 1) {
+                Text(DictationOverlayCopy.listening)
+                    .font(.system(size: 13, weight: .semibold))
+                if let notice = model.audioInputNotice {
+                    Text(notice)
+                        .font(.system(size: 10.5, weight: .medium))
+                        .foregroundStyle(Color(hex: 0xD8B46B))
+                }
+            }
             Spacer(minLength: 2)
             LevelMeter(level: model.audioLevel)
             Button {

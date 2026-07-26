@@ -1,6 +1,8 @@
 @preconcurrency import AVFoundation
 import Accelerate
 import Foundation
+import OSLog
+import SottoAppCore
 
 enum MicrophoneCaptureError: LocalizedError {
     case unavailable
@@ -44,10 +46,19 @@ final class MicrophoneCapture: @unchecked Sendable {
     typealias LevelCallback = @Sendable (Double) -> Void
     typealias ErrorCallback = @Sendable (Error) -> Void
 
-    private let engine = AVAudioEngine()
+    private static let logger = Logger(
+        subsystem: "com.willhong.sotto",
+        category: "microphone"
+    )
+
+    private let lifecycleQueue = DispatchQueue(
+        label: "com.sotto.audio.lifecycle"
+    )
     private let processingQueue = DispatchQueue(label: "com.sotto.audio.convert")
     private let tapCallbackGroup = DispatchGroup()
     private let lock = NSLock()
+    private var engine: AVAudioEngine?
+    private var inputTapInstalled = false
     private var converter: AVAudioConverter?
     private var outputFormat: AVAudioFormat?
     private var capturedPCM = Data()
@@ -55,8 +66,12 @@ final class MicrophoneCapture: @unchecked Sendable {
     private var onLevel: LevelCallback?
     private var onError: ErrorCallback?
     private var isRunning = false
+    private var captureGeneration = 0
     private var didReportMaximumDuration = false
     private var configurationObserver: NSObjectProtocol?
+    private var scheduledRestart: DispatchWorkItem?
+    private var lifecycle = AudioCaptureLifecycleStateMachine()
+    private var lastRestartError: Error?
     // Provider-aware timers stop normally at 3/5 minutes. This is only a
     // hard safety ceiling if coordinator state is disrupted.
     private let maximumPCMBytes = 16_000 * 2 * 60 * 6
@@ -72,74 +87,60 @@ final class MicrophoneCapture: @unchecked Sendable {
             return
         }
         isRunning = true
+        captureGeneration &+= 1
+        let generation = captureGeneration
         self.onPCM = onPCM
         self.onLevel = onLevel
         self.onError = onError
         lock.unlock()
 
-        let input = engine.inputNode
-        let inputFormat = input.outputFormat(forBus: 0)
-        guard inputFormat.channelCount > 0, inputFormat.sampleRate > 0 else {
-            resetRunningState()
-            throw MicrophoneCaptureError.unavailable
-        }
-        guard let outputFormat = AVAudioFormat(
-            commonFormat: .pcmFormatInt16,
-            sampleRate: 16_000,
-            channels: 1,
-            interleaved: false
-        ), let converter = AVAudioConverter(from: inputFormat, to: outputFormat) else {
-            resetRunningState()
-            throw MicrophoneCaptureError.conversionUnavailable
-        }
-
         processingQueue.sync {
-            self.outputFormat = outputFormat
-            self.converter = converter
             self.capturedPCM.removeAll(keepingCapacity: true)
             self.didReportMaximumDuration = false
         }
 
-        configurationObserver = NotificationCenter.default.addObserver(
-            forName: .AVAudioEngineConfigurationChange,
-            object: engine,
-            queue: nil
-        ) { [weak self] _ in
-            self?.callbackSnapshot().error?(MicrophoneCaptureError.configurationChanged)
+        let startError: Error? = lifecycleQueue.sync {
+            guard lifecycle.handle(.startRequested) == [.startEngine] else {
+                return MicrophoneCaptureError.unavailable
+            }
+            do {
+                try createAndStartEngine(generation: generation)
+                _ = lifecycle.handle(.engineStarted)
+                return nil
+            } catch {
+                let actions = lifecycle.handle(.engineStartFailed)
+                executeLifecycleActions(
+                    actions,
+                    generation: generation,
+                    reportFailure: false
+                )
+                return error
+            }
         }
 
-        input.installTap(
-            onBus: 0,
-            bufferSize: 2_048,
-            format: nil
-        ) { [weak self] buffer, _ in
-            self?.receiveTap(buffer)
-        }
-
-        do {
-            engine.prepare()
-            try engine.start()
-        } catch {
-            input.removeTap(onBus: 0)
+        if let startError {
+            processingQueue.sync {
+                converter = nil
+                outputFormat = nil
+                capturedPCM.removeAll(keepingCapacity: true)
+            }
             resetRunningState()
-            throw error
+            throw startError
         }
     }
 
     func stop() -> Data {
         lock.lock()
-        let wasRunning = isRunning
         isRunning = false
-        let observer = configurationObserver
-        configurationObserver = nil
+        captureGeneration &+= 1
         lock.unlock()
 
-        if let observer {
-            NotificationCenter.default.removeObserver(observer)
-        }
-        if wasRunning {
-            engine.inputNode.removeTap(onBus: 0)
-            engine.stop()
+        lifecycleQueue.sync {
+            executeLifecycleActions(
+                lifecycle.handle(.stopRequested),
+                generation: nil,
+                reportFailure: false
+            )
         }
 
         // A tap callback that already began may not have queued its copied
@@ -162,6 +163,191 @@ final class MicrophoneCapture: @unchecked Sendable {
         onError = nil
         lock.unlock()
         return data
+    }
+
+    private func createAndStartEngine(generation: Int) throws {
+        guard isActive(generation: generation) else {
+            throw CancellationError()
+        }
+
+        let nextEngine = AVAudioEngine()
+        let input = nextEngine.inputNode
+        let inputFormat = input.outputFormat(forBus: 0)
+        guard inputFormat.channelCount > 0, inputFormat.sampleRate > 0 else {
+            throw MicrophoneCaptureError.unavailable
+        }
+        guard let outputFormat = AVAudioFormat(
+            commonFormat: .pcmFormatInt16,
+            sampleRate: 16_000,
+            channels: 1,
+            interleaved: false
+        ), let converter = AVAudioConverter(
+            from: inputFormat,
+            to: outputFormat
+        ) else {
+            throw MicrophoneCaptureError.conversionUnavailable
+        }
+
+        processingQueue.sync {
+            self.outputFormat = outputFormat
+            self.converter = converter
+        }
+
+        let observer = NotificationCenter.default.addObserver(
+            forName: .AVAudioEngineConfigurationChange,
+            object: nextEngine,
+            queue: nil
+        ) { [weak self, weak nextEngine] _ in
+            guard let nextEngine else { return }
+            self?.enqueueConfigurationChange(
+                for: nextEngine,
+                generation: generation
+            )
+        }
+
+        input.installTap(
+            onBus: 0,
+            bufferSize: 2_048,
+            format: nil
+        ) { [weak self] buffer, _ in
+            self?.receiveTap(buffer)
+        }
+
+        engine = nextEngine
+        inputTapInstalled = true
+        configurationObserver = observer
+
+        do {
+            nextEngine.prepare()
+            try nextEngine.start()
+        } catch {
+            releaseEngine()
+            throw error
+        }
+    }
+
+    private func enqueueConfigurationChange(
+        for changedEngine: AVAudioEngine,
+        generation: Int
+    ) {
+        lifecycleQueue.async { [weak self, weak changedEngine] in
+            guard let self,
+                  let changedEngine,
+                  self.engine === changedEngine,
+                  self.isActive(generation: generation)
+            else { return }
+
+            Self.logger.info(
+                "Audio hardware configuration changed; restarting capture"
+            )
+            self.executeLifecycleActions(
+                self.lifecycle.handle(.configurationChanged),
+                generation: generation,
+                reportFailure: true
+            )
+        }
+    }
+
+    private func executeLifecycleActions(
+        _ actions: [AudioCaptureLifecycleAction],
+        generation: Int?,
+        reportFailure: Bool
+    ) {
+        for action in actions {
+            switch action {
+            case .startEngine:
+                break
+
+            case .releaseEngine:
+                releaseEngine()
+
+            case let .scheduleRestart(afterMilliseconds):
+                guard let generation else { continue }
+                scheduleRestart(
+                    afterMilliseconds: afterMilliseconds,
+                    generation: generation
+                )
+
+            case .cancelScheduledRestart:
+                scheduledRestart?.cancel()
+                scheduledRestart = nil
+
+            case .reportFailure:
+                guard reportFailure else { continue }
+                let error = lastRestartError
+                    ?? MicrophoneCaptureError.configurationChanged
+                callbackSnapshot().error?(error)
+            }
+        }
+    }
+
+    private func scheduleRestart(
+        afterMilliseconds: Int,
+        generation: Int
+    ) {
+        scheduledRestart?.cancel()
+        let workItem = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            self.scheduledRestart = nil
+            guard self.isActive(generation: generation) else {
+                self.executeLifecycleActions(
+                    self.lifecycle.handle(.stopRequested),
+                    generation: nil,
+                    reportFailure: false
+                )
+                return
+            }
+
+            do {
+                try self.createAndStartEngine(generation: generation)
+                self.lastRestartError = nil
+                self.executeLifecycleActions(
+                    self.lifecycle.handle(.restartSucceeded),
+                    generation: generation,
+                    reportFailure: true
+                )
+            } catch {
+                self.lastRestartError = error
+                Self.logger.error(
+                    "Audio capture restart failed: \(error.localizedDescription, privacy: .public)"
+                )
+                self.executeLifecycleActions(
+                    self.lifecycle.handle(.restartFailed),
+                    generation: generation,
+                    reportFailure: true
+                )
+            }
+        }
+        scheduledRestart = workItem
+        lifecycleQueue.asyncAfter(
+            deadline: .now() + .milliseconds(afterMilliseconds),
+            execute: workItem
+        )
+    }
+
+    private func releaseEngine() {
+        if let observer = configurationObserver {
+            NotificationCenter.default.removeObserver(observer)
+            configurationObserver = nil
+        }
+
+        if let engine {
+            if inputTapInstalled {
+                engine.inputNode.removeTap(onBus: 0)
+                inputTapInstalled = false
+            }
+            engine.stop()
+            engine.reset()
+            self.engine = nil
+        }
+
+        tapCallbackGroup.wait()
+    }
+
+    private func isActive(generation: Int) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return isRunning && captureGeneration == generation
     }
 
     private func receiveTap(_ buffer: AVAudioPCMBuffer) {
@@ -312,11 +498,6 @@ final class MicrophoneCapture: @unchecked Sendable {
         onPCM = nil
         onLevel = nil
         onError = nil
-        let observer = configurationObserver
-        configurationObserver = nil
         lock.unlock()
-        if let observer {
-            NotificationCenter.default.removeObserver(observer)
-        }
     }
 }
