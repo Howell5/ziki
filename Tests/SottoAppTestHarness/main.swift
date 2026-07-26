@@ -233,6 +233,94 @@ private func testOpenSettingsPreservesCurrentSelection() throws {
     try expect(presenter.showCount, equals: 2, "settings window show count")
 }
 
+private func testAudioConfigurationChangeRestartsCapture() throws {
+    var lifecycle = AudioCaptureLifecycleStateMachine(
+        maximumRestartAttempts: 2,
+        restartDelayMilliseconds: 180
+    )
+
+    try expect(
+        lifecycle.handle(.startRequested),
+        equals: [.startEngine],
+        "capture start action"
+    )
+    try expect(
+        lifecycle.handle(.engineStarted),
+        equals: [],
+        "capture start completion"
+    )
+    try expect(
+        lifecycle.handle(.configurationChanged),
+        equals: [
+            .releaseEngine,
+            .scheduleRestart(afterMilliseconds: 180)
+        ],
+        "Bluetooth route change recovery"
+    )
+    try expect(
+        lifecycle.handle(.restartSucceeded),
+        equals: [],
+        "capture restart completion"
+    )
+}
+
+private func testAudioStopCancelsRecoveryAndReleasesEngine() throws {
+    var lifecycle = AudioCaptureLifecycleStateMachine()
+
+    _ = lifecycle.handle(.startRequested)
+    _ = lifecycle.handle(.engineStarted)
+    _ = lifecycle.handle(.configurationChanged)
+
+    try expect(
+        lifecycle.handle(.stopRequested),
+        equals: [.cancelScheduledRestart, .releaseEngine],
+        "capture stop during route recovery"
+    )
+    try expect(
+        lifecycle.handle(.restartSucceeded),
+        equals: [],
+        "stale restart ignored after stop"
+    )
+}
+
+private func testAudioRecoveryReportsOnlyAfterRetriesExhausted() throws {
+    var lifecycle = AudioCaptureLifecycleStateMachine(
+        maximumRestartAttempts: 2,
+        restartDelayMilliseconds: 50
+    )
+
+    _ = lifecycle.handle(.startRequested)
+    _ = lifecycle.handle(.engineStarted)
+    _ = lifecycle.handle(.configurationChanged)
+
+    try expect(
+        lifecycle.handle(.restartFailed),
+        equals: [
+            .releaseEngine,
+            .scheduleRestart(afterMilliseconds: 50)
+        ],
+        "first restart failure retries"
+    )
+    try expect(
+        lifecycle.handle(.restartFailed),
+        equals: [.releaseEngine, .reportFailure],
+        "final restart failure reports"
+    )
+}
+
+private func testBluetoothInputShowsNonBlockingNotice() throws {
+    try expect(
+        BluetoothInputNotice.resolve(for: .classicBluetooth),
+        equals: "蓝牙麦克风会暂时降低耳机播放音质",
+        "classic Bluetooth input notice"
+    )
+    try expect(
+        BluetoothInputNotice.resolve(for: .builtInOrWired),
+        equals: nil,
+        "non-Bluetooth input notice"
+    )
+}
+
 @main
 private enum SottoAppTestHarness {
     static func main() async {
@@ -260,6 +348,22 @@ private enum SottoAppTestHarness {
             (
                 "Open Settings preserves current selection",
                 testOpenSettingsPreservesCurrentSelection
+            ),
+            (
+                "Audio configuration change restarts capture",
+                testAudioConfigurationChangeRestartsCapture
+            ),
+            (
+                "Audio stop cancels recovery and releases engine",
+                testAudioStopCancelsRecoveryAndReleasesEngine
+            ),
+            (
+                "Audio recovery reports only after retries exhaust",
+                testAudioRecoveryReportsOnlyAfterRetriesExhausted
+            ),
+            (
+                "Bluetooth input shows non-blocking notice",
+                testBluetoothInputShowsNonBlockingNotice
             )
         ]
         var failures = 0

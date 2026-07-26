@@ -57,6 +57,7 @@ final class AppModel: ObservableObject {
 
     @Published private(set) var phase: DictationPhase = .idle
     @Published var audioLevel: Double = 0
+    @Published private(set) var audioInputNotice: String?
     @Published private(set) var lastResult: String?
     @Published private(set) var lastServiceError: String?
     @Published private(set) var statusDetail = "Ready"
@@ -548,6 +549,9 @@ final class AppModel: ObservableObject {
     }
 
     private func prepareCaptureAndConnect() {
+        audioInputNotice = BluetoothInputNotice.resolve(
+            for: DefaultAudioInput.transportKind()
+        )
         let provider = settings.provider
         let request = CaptureRequest(
             provider: provider,
@@ -676,6 +680,7 @@ final class AppModel: ObservableObject {
         recordingLimitTask?.cancel()
         recordingLimitTask = nil
         audioLevel = 0
+        audioInputNotice = nil
         let capturedPCM = microphone.stop()
         if EmptyDictationPolicy.isTriviallyShortPCM16(
             byteCount: capturedPCM.count,
@@ -854,6 +859,7 @@ final class AppModel: ObservableObject {
         recordingLimitTask?.cancel()
         recordingLimitTask = nil
         audioLevel = 0
+        audioInputNotice = nil
     }
 
     private func cancelActiveSession() {
@@ -873,6 +879,7 @@ final class AppModel: ObservableObject {
         recordingLimitTask?.cancel()
         recordingLimitTask = nil
         audioLevel = 0
+        audioInputNotice = nil
 
         if let session {
             Task {
