@@ -1,15 +1,11 @@
 import AppKit
 import ApplicationServices
 import CoreGraphics
+import SottoAppCore
 import SottoCore
 
-enum TextInsertionOutcome: Equatable {
-    case inserted
-    case copied(String)
-}
-
 @MainActor
-final class TextInsertionService {
+final class TextInsertionService: DictationTextInserting {
     func insert(_ text: String) async -> TextInsertionOutcome {
         guard AXIsProcessTrusted() else {
             copyOnly(text)

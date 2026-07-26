@@ -560,8 +560,8 @@ private func testPolishedTranscriptMovesToInsertion() throws {
     try expect(machine.phase, equals: .inserting, "phase after cleanup")
     try expect(
         effects,
-        equals: [.insertText("明天下午三点开会")],
-        "effects after cleanup"
+        equals: [.deliverFinalText("明天下午三点开会")],
+        "single final-output effect after cleanup"
     )
 }
 

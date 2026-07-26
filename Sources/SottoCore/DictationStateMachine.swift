@@ -27,7 +27,7 @@ public enum DictationEffect: Equatable, Sendable {
     case stopRecordingAndTranscribe
     case cancelRecording
     case polishTranscript(String)
-    case insertText(String)
+    case deliverFinalText(String)
     case copyToClipboard(String)
     case scheduleReset(afterMilliseconds: Int)
 }
@@ -59,7 +59,7 @@ public struct DictationStateMachine: Sendable {
             return [.polishTranscript(text)]
         case let (.polishing, .transcriptPolished(text)):
             phase = .inserting
-            return [.insertText(text)]
+            return [.deliverFinalText(text)]
         case (.inserting, .insertionSucceeded):
             phase = .idle
             return []

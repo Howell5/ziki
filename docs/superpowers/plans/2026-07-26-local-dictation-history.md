@@ -6,7 +6,7 @@
 
 **Architecture:** Add a testable `SottoCore` history store backed by one atomically-written JSON document in Application Support. `AppModel` owns the store and the state machine emits history-save before insertion. The existing settings window gains a shared navigation destination and a SwiftUI history pane.
 
-**Tech Stack:** Swift 6, Foundation Codable/FileManager, Combine `ObservableObject`, SwiftUI, existing `SottoCoreTestHarness`, SwiftPM XCTest.
+**Tech Stack:** Swift 6, Foundation Codable/FileManager, Combine `ObservableObject`, SwiftUI, executable `SottoCoreTestHarness` and `SottoAppTestHarness` targets. The installed Apple Command Line Tools expose neither XCTest nor Swift Testing, so app-level tests run through an executable harness against shared production modules.
 
 ---
 
@@ -15,11 +15,10 @@
 - Create `Sources/SottoCore/DictationHistory.swift`: entry/document types, retention/search/provider policies.
 - Create `Sources/SottoCore/DictationHistoryStore.swift`: observable in-memory state, JSON persistence, corruption backup, mutation rollback, expiry scheduling.
 - Create `Sources/Sotto/SettingsPane.swift`: shared settings navigation enum.
-- Create `Sources/Sotto/DictationOutputCoordinator.swift`: injected history-before-paste orchestration.
+- Create `Sources/SottoAppCore/DictationOutputCoordinator.swift`: injected history-before-paste orchestration.
 - Create `Sources/Sotto/DictationHistoryView.swift`: history list, search, copy/delete/clear UI.
-- Create `Tests/SottoTests/DictationOutputCoordinatorTests.swift`: app-level ordering and failure-continuation tests.
-- Create `Tests/SottoTests/SettingsNavigationTests.swift`: app-level settings-window routing tests.
-- Modify `Package.swift`: add the app-level XCTest target.
+- Create `Tests/SottoAppTestHarness/main.swift`: app-level ordering, failure-continuation and navigation tests.
+- Modify `Package.swift`: add the shared app-core module and app-level executable test harness.
 - Modify `Sources/SottoCore/DictationStateMachine.swift`: emit one final-output delivery effect.
 - Modify `Sources/Sotto/AppModel.swift`: own the store, capture provider, save history, route history navigation.
 - Modify `Sources/Sotto/SettingsRootView.swift`: add history pane and privacy disclosure.
@@ -164,7 +163,7 @@ Run:
 
 ```bash
 swift run SottoCoreTestHarness
-swift test
+swift run SottoAppTestHarness
 swift build -c release -Xswiftc -warnings-as-errors
 ```
 
@@ -182,10 +181,10 @@ git commit -m "Persist local dictation history"
 **Files:**
 - Modify: `Package.swift`
 - Modify: `Sources/SottoCore/DictationStateMachine.swift`
-- Create: `Sources/Sotto/DictationOutputCoordinator.swift`
+- Create: `Sources/SottoAppCore/DictationOutputCoordinator.swift`
 - Modify: `Sources/Sotto/AppModel.swift`
 - Modify: `Tests/SottoCoreTestHarness/main.swift`
-- Create: `Tests/SottoTests/DictationOutputCoordinatorTests.swift`
+- Create: `Tests/SottoAppTestHarness/main.swift`
 
 - [ ] **Step 1: Write failing ordering tests**
 
@@ -201,16 +200,21 @@ try expect(
 
 Add tests proving cancel, no speech and failure do not emit `.deliverFinalText`.
 
-Add a SwiftPM app-level test target:
+Add a SwiftPM shared app-core module and executable app-level test harness:
 
 ```swift
-.testTarget(
-    name: "SottoTests",
-    dependencies: ["Sotto", "SottoCore"]
+.target(
+    name: "SottoAppCore",
+    dependencies: ["SottoCore"]
+),
+.executableTarget(
+    name: "SottoAppTestHarness",
+    dependencies: ["SottoAppCore", "SottoCore"],
+    path: "Tests/SottoAppTestHarness"
 )
 ```
 
-In `DictationOutputCoordinatorTests`, inject fakes and prove:
+In `SottoAppTestHarness`, inject fakes and prove:
 
 - the exact event order is history, insertion-readiness gate, then paste;
 - the provider ID passed to history is the supplied session provider;
@@ -263,7 +267,7 @@ Run:
 
 ```bash
 swift run SottoCoreTestHarness
-swift test --filter DictationOutputCoordinatorTests
+swift run SottoAppTestHarness
 swift build -c release -Xswiftc -warnings-as-errors
 ```
 
@@ -272,7 +276,7 @@ Expected: pass.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add Package.swift Sources/SottoCore/DictationStateMachine.swift Sources/Sotto/DictationOutputCoordinator.swift Sources/Sotto/AppModel.swift Tests/SottoCoreTestHarness/main.swift Tests/SottoTests/DictationOutputCoordinatorTests.swift
+git add Package.swift Sources/SottoCore/DictationStateMachine.swift Sources/SottoAppCore/DictationOutputCoordinator.swift Sources/Sotto/AppModel.swift Tests/SottoCoreTestHarness/main.swift Tests/SottoAppTestHarness/main.swift
 git commit -m "Save final dictations before paste"
 ```
 
@@ -284,7 +288,7 @@ git commit -m "Save final dictations before paste"
 - Modify: `Sources/Sotto/SettingsRootView.swift`
 - Modify: `Sources/Sotto/SettingsWindowController.swift`
 - Modify: `Sources/Sotto/MenuBarView.swift`
-- Create: `Tests/SottoTests/SettingsNavigationTests.swift`
+- Modify: `Tests/SottoAppTestHarness/main.swift`
 
 - [ ] **Step 1: Write failing app-level navigation tests**
 
@@ -297,7 +301,7 @@ Create shared observable `SettingsNavigationState` and `SettingsPane`, plus an i
 
 - [ ] **Step 2: Run harness and verify RED**
 
-Run: `swift test --filter SettingsNavigationTests`
+Run: `swift run SottoAppTestHarness`
 
 Expected: missing history destination.
 
@@ -314,7 +318,7 @@ Add `Open History…` to the menu between Copy Last Result and the divider.
 Run:
 
 ```bash
-swift test --filter SettingsNavigationTests
+swift run SottoAppTestHarness
 swift build -c release -Xswiftc -warnings-as-errors
 ```
 
@@ -323,7 +327,7 @@ Expected: pass.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add Sources/Sotto/SettingsPane.swift Sources/Sotto/AppModel.swift Sources/Sotto/SettingsRootView.swift Sources/Sotto/SettingsWindowController.swift Sources/Sotto/MenuBarView.swift Tests/SottoTests/SettingsNavigationTests.swift
+git add Sources/SottoAppCore/SettingsPane.swift Sources/Sotto/AppModel.swift Sources/Sotto/SettingsRootView.swift Sources/Sotto/SettingsWindowController.swift Sources/Sotto/MenuBarView.swift Tests/SottoAppTestHarness/main.swift
 git commit -m "Add dictation history navigation"
 ```
 
@@ -364,7 +368,7 @@ Run:
 
 ```bash
 swift run SottoCoreTestHarness
-swift test
+swift run SottoAppTestHarness
 swift build -c release -Xswiftc -warnings-as-errors
 git diff --check
 ```
@@ -390,7 +394,7 @@ Run:
 
 ```bash
 swift run SottoCoreTestHarness
-swift test
+swift run SottoAppTestHarness
 swift build -c release -Xswiftc -warnings-as-errors
 plutil -lint Packaging/Info.plist
 git diff --check
@@ -406,7 +410,7 @@ Create `codex/release-v0.2.9`, bump `CFBundleShortVersionString` from `0.2.8` to
 
 - [ ] **Step 4: Verify and merge the release PR**
 
-Repeat the core harness, `swift test`, strict release build, plist validation and diff check. Merge the clean release PR.
+Repeat both executable harnesses, strict release build, plist validation and diff check. Merge the clean release PR.
 
 - [ ] **Step 5: Tag and package**
 
