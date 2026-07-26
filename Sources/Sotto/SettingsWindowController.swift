@@ -1,13 +1,20 @@
 import AppKit
+import SottoAppCore
 import SwiftUI
 
 @MainActor
-final class SettingsWindowController: NSWindowController, NSWindowDelegate {
+final class SettingsWindowController:
+    NSWindowController,
+    NSWindowDelegate,
+    SettingsWindowPresenting
+{
     init(model: AppModel) {
         let rootView = SettingsRootView()
             .environmentObject(model)
             .environmentObject(model.settings)
             .environmentObject(model.permissions)
+            .environmentObject(model.historyStore)
+            .environmentObject(model.settingsNavigation)
         let hostingController = NSHostingController(rootView: rootView)
         let window = NSWindow(contentViewController: hostingController)
         window.title = "Sotto Settings"

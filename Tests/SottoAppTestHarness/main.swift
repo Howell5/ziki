@@ -82,6 +82,26 @@ private final class FakeTextInserter: DictationTextInserting {
 }
 
 @MainActor
+private final class FakeSettingsWindowPresenter: SettingsWindowPresenting {
+    private(set) var showCount = 0
+
+    func show() {
+        showCount += 1
+    }
+}
+
+@MainActor
+private final class FakeHistoryPurger: DictationHistoryPurging {
+    private(set) var purgeCount = 0
+
+    @discardableResult
+    func purgeExpired() -> Bool {
+        purgeCount += 1
+        return true
+    }
+}
+
+@MainActor
 private func testDeliverSavesHistoryBeforeReadinessAndInsertion() async throws {
     let events = EventRecorder()
     let history = FakeHistoryRecorder(events: events)
@@ -170,6 +190,49 @@ private func testRejectedReadinessPreventsInsertion() async throws {
     try expect(outcome, equals: nil, "rejected insertion outcome")
 }
 
+@MainActor
+private func testSettingsNavigationStartsAtStartPane() throws {
+    let state = SettingsNavigationState()
+
+    try expect(state.selection, equals: .start, "initial settings pane")
+}
+
+@MainActor
+private func testOpenHistorySelectsHistoryAndShowsWindow() throws {
+    let state = SettingsNavigationState()
+    let presenter = FakeSettingsWindowPresenter()
+    let purger = FakeHistoryPurger()
+    let coordinator = SettingsNavigationCoordinator(
+        state: state,
+        historyPurger: purger
+    )
+    coordinator.attach(presenter)
+
+    coordinator.openHistory()
+
+    try expect(state.selection, equals: .history, "history settings pane")
+    try expect(presenter.showCount, equals: 1, "history window show count")
+    try expect(purger.purgeCount, equals: 1, "history open purge count")
+}
+
+@MainActor
+private func testOpenSettingsPreservesCurrentSelection() throws {
+    let state = SettingsNavigationState()
+    let presenter = FakeSettingsWindowPresenter()
+    let coordinator = SettingsNavigationCoordinator(state: state)
+    coordinator.attach(presenter)
+    coordinator.openHistory()
+
+    coordinator.openSettings()
+
+    try expect(
+        state.selection,
+        equals: .history,
+        "ordinary settings preserves current pane"
+    )
+    try expect(presenter.showCount, equals: 2, "settings window show count")
+}
+
 @main
 private enum SottoAppTestHarness {
     static func main() async {
@@ -185,6 +248,18 @@ private enum SottoAppTestHarness {
             (
                 "Rejected readiness prevents insertion",
                 testRejectedReadinessPreventsInsertion
+            ),
+            (
+                "Settings navigation starts at Start pane",
+                testSettingsNavigationStartsAtStartPane
+            ),
+            (
+                "Open History selects History and shows window",
+                testOpenHistorySelectsHistoryAndShowsWindow
+            ),
+            (
+                "Open Settings preserves current selection",
+                testOpenSettingsPreservesCurrentSelection
             )
         ]
         var failures = 0

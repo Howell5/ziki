@@ -69,10 +69,11 @@ final class AppModel: ObservableObject {
     let permissions: PermissionCenter
     let keychain: KeychainStore
     let historyStore: DictationHistoryStore
+    let settingsNavigation: SettingsNavigationState
 
     private var stateMachine = DictationStateMachine()
     private weak var overlayController: OverlayPanelController?
-    private weak var settingsWindowController: SettingsWindowController?
+    private let settingsNavigationCoordinator: SettingsNavigationCoordinator
     private let microphone = MicrophoneCapture()
     private let audioTransport = AudioTransportRunner()
     private let textInsertion = TextInsertionService()
@@ -102,12 +103,18 @@ final class AppModel: ObservableObject {
         settings: SettingsStore = SettingsStore(),
         permissions: PermissionCenter = PermissionCenter(),
         keychain: KeychainStore = KeychainStore(),
-        historyStore: DictationHistoryStore = DictationHistoryStore()
+        historyStore: DictationHistoryStore = DictationHistoryStore(),
+        settingsNavigation: SettingsNavigationState = SettingsNavigationState()
     ) {
         self.settings = settings
         self.permissions = permissions
         self.keychain = keychain
         self.historyStore = historyStore
+        self.settingsNavigation = settingsNavigation
+        settingsNavigationCoordinator = SettingsNavigationCoordinator(
+            state: settingsNavigation,
+            historyPurger: historyStore
+        )
         insertionReadiness.wait = { [weak self] in
             await self?.waitUntilReadyForInsertion() ?? false
         }
@@ -134,7 +141,7 @@ final class AppModel: ObservableObject {
     }
 
     func attachSettingsWindow(_ controller: SettingsWindowController) {
-        settingsWindowController = controller
+        settingsNavigationCoordinator.attach(controller)
     }
 
     func bootstrap() {
@@ -189,13 +196,17 @@ final class AppModel: ObservableObject {
     }
 
     func openSettings() {
-        settingsWindowController?.show()
+        settingsNavigationCoordinator.openSettings()
+    }
+
+    func openHistory() {
+        settingsNavigationCoordinator.openHistory()
     }
 
     func restoreSettingsAfterPermissionPrompt() {
         permissions.completeSettingsRestoration()
         permissions.refresh()
-        settingsWindowController?.show()
+        settingsNavigationCoordinator.openSettings()
     }
 
     @discardableResult
