@@ -160,6 +160,35 @@ private final class HistoryWriter {
     }
 }
 
+@MainActor
+private final class HistoryReader {
+    var shouldFail = false
+
+    func read(from url: URL) throws -> Data {
+        if shouldFail {
+            throw TestFailure(description: "injected history read failure")
+        }
+        return try Data(contentsOf: url)
+    }
+}
+
+@MainActor
+private final class HistoryMover {
+    var shouldFail = false
+    private(set) var moveCount = 0
+
+    func move(from sourceURL: URL, to destinationURL: URL) throws {
+        moveCount += 1
+        if shouldFail {
+            throw TestFailure(description: "injected history move failure")
+        }
+        try FileManager.default.moveItem(
+            at: sourceURL,
+            to: destinationURL
+        )
+    }
+}
+
 private func withTemporaryHistoryFile(
     _ body: (URL) throws -> Void
 ) throws {
@@ -323,6 +352,126 @@ private func testHistoryStoreBacksUpCorruptJSON() throws {
                 && $0.pathExtension == "json"
         }
         try expect(backups.count, equals: 1, "corrupt history backup count")
+    }
+}
+
+private func testHistoryStoreDoesNotQuarantineOrOverwriteUnreadableFile() throws {
+    try withTemporaryHistoryFile { fileURL in
+        let now = Date(timeIntervalSince1970: 4_000_000)
+        let existing = DictationHistoryEntry(
+            id: UUID(),
+            text: "existing",
+            createdAt: now.addingTimeInterval(-1),
+            providerID: "fun-asr"
+        )
+        try writeHistoryDocument([existing], to: fileURL)
+        let originalData = try Data(contentsOf: fileURL)
+
+        try MainActor.assumeIsolated {
+            let reader = HistoryReader()
+            reader.shouldFail = true
+            let mover = HistoryMover()
+            let store = DictationHistoryStore(
+                fileURL: fileURL,
+                now: { now },
+                readData: reader.read,
+                moveItem: mover.move,
+                scheduler: ManualHistoryScheduler()
+            )
+
+            let saved = store.append(
+                text: "pending",
+                providerID: "fun-asr"
+            )
+
+            try expect(saved, equals: false, "unreadable append result")
+            try expect(mover.moveCount, equals: 0, "I/O failure move count")
+            try expect(
+                try Data(contentsOf: fileURL),
+                equals: originalData,
+                "unreadable history remains untouched"
+            )
+            try expect(
+                store.entries.map(\.text),
+                equals: ["pending"],
+                "unreadable append remains in memory"
+            )
+
+            reader.shouldFail = false
+            _ = store.append(text: "second", providerID: "fun-asr")
+
+            try expect(
+                Set(try readHistoryDocument(from: fileURL).entries.map(\.text)),
+                equals: Set(["existing", "pending", "second"]),
+                "recovered read merges pending entries"
+            )
+        }
+    }
+}
+
+private func testHistoryStoreDoesNotOverwriteCorruptFileWhenBackupFails() throws {
+    try withTemporaryHistoryFile { fileURL in
+        let corruptData = Data("not-json".utf8)
+        try corruptData.write(to: fileURL)
+
+        try MainActor.assumeIsolated {
+            let mover = HistoryMover()
+            mover.shouldFail = true
+            let store = DictationHistoryStore(
+                fileURL: fileURL,
+                moveItem: mover.move,
+                scheduler: ManualHistoryScheduler()
+            )
+
+            let saved = store.append(
+                text: "pending",
+                providerID: "fun-asr"
+            )
+
+            try expect(saved, equals: false, "failed quarantine append result")
+            try expect(mover.moveCount >= 1, equals: true, "quarantine attempted")
+            try expect(
+                try Data(contentsOf: fileURL),
+                equals: corruptData,
+                "unbacked corrupt history remains untouched"
+            )
+            try expect(
+                store.entries.map(\.text),
+                equals: ["pending"],
+                "failed quarantine append remains in memory"
+            )
+        }
+    }
+}
+
+private func testHistoryStorePersistsPendingEntriesWhenMissingFileRecovers() throws {
+    try withTemporaryHistoryFile { fileURL in
+        try writeHistoryDocument([], to: fileURL)
+
+        try MainActor.assumeIsolated {
+            var now = Date(timeIntervalSince1970: 5_000_000)
+            let reader = HistoryReader()
+            reader.shouldFail = true
+            let scheduler = ManualHistoryScheduler()
+            let store = DictationHistoryStore(
+                fileURL: fileURL,
+                now: { now },
+                readData: reader.read,
+                scheduler: scheduler
+            )
+            _ = store.append(text: "pending", providerID: "fun-asr")
+
+            try FileManager.default.removeItem(at: fileURL)
+            reader.shouldFail = false
+            now.addTimeInterval(5 * 60)
+            scheduler.fire()
+
+            try expect(
+                try readHistoryDocument(from: fileURL).entries.map(\.text),
+                equals: ["pending"],
+                "missing-file recovery persists pending history"
+            )
+        }
     }
 }
 
@@ -1577,6 +1726,18 @@ private enum SottoCoreTestHarness {
             (
                 "History store backs up corrupt JSON",
                 testHistoryStoreBacksUpCorruptJSON
+            ),
+            (
+                "History store does not quarantine or overwrite unreadable file",
+                testHistoryStoreDoesNotQuarantineOrOverwriteUnreadableFile
+            ),
+            (
+                "History store does not overwrite corrupt file when backup fails",
+                testHistoryStoreDoesNotOverwriteCorruptFileWhenBackupFails
+            ),
+            (
+                "History store persists pending entries when missing file recovers",
+                testHistoryStorePersistsPendingEntriesWhenMissingFileRecovers
             ),
             (
                 "History store keeps append in memory after write failure",
