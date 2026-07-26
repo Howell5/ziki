@@ -1,6 +1,6 @@
 # Sotto
 
-Sotto 是一个专注于 macOS 的原生语音输入 App：单击 `fn` 开始说话，再次单击 `fn`，把识别并整理后的文本写回原来的输入框。
+Sotto 是一个专注于 macOS 的原生语音输入 App：单击 `fn` 开始说话，再次单击 `fn`，把识别并整理后的文本粘贴到完成处理时的系统键盘焦点。
 
 当前 Apple Silicon 测试版可从 [GitHub Releases](https://github.com/Howell5/sotto/releases/tag/v0.2.7) 下载。
 
@@ -10,7 +10,7 @@ Sotto 是一个专注于 macOS 的原生语音输入 App：单击 `fn` 开始说
 - `fn` toggle 开始／结束听写，`Esc` 取消
 - 阿里百炼 Fun-ASR Realtime 实时识别
 - 同一 Workspace 与 API Key 调用 Qwen3.5 Flash 做保守整理
-- 优先写回原输入框；无法安全写入时保留到剪贴板
+- 通过系统 `⌘V` 写入当前键盘焦点；结果同时保留在剪贴板
 - API Key 存在 macOS Keychain，不保存录音和转写历史
 
 翻译、聊天、云端历史和模板系统不在当前范围内。
@@ -117,7 +117,7 @@ SOTTO_DEVELOPMENT_CODESIGN_IDENTITY="Your Local Code Signing" \
 首次启动会打开设置窗口。请完成两项权限：
 
 1. **麦克风**：只在用户主动开始听写后采集语音。
-2. **辅助功能**：读取原输入焦点、写回识别结果，并在其他应用处于前台时识别独立的 `fn` 按键。
+2. **辅助功能**：识别独立的 `fn` 按键、避开安全输入框，并向当前系统键盘焦点发送粘贴。
 
 如果系统权限面板已经打开但 Sotto 仍显示未允许：
 
@@ -125,7 +125,7 @@ SOTTO_DEVELOPMENT_CODESIGN_IDENTITY="Your Local Code Signing" \
 2. 完全退出并重新打开 Sotto；
 3. ad-hoc 版本重建后如果签名身份发生变化，可能需要移除旧条目再重新授权。
 
-Sotto 不会自动写入密码等安全输入框。输入焦点已经变化或目标不支持安全写入时，结果会复制到剪贴板，并提示按 `⌘V` 手动粘贴。
+Sotto 不会自动写入密码等安全输入框。最终文本会先放入剪贴板，再向处理完成时真正拥有系统键盘焦点的位置发送一次 `⌘V`；Sotto 不再按组件类型、窗口或进程关系预先判断目标。
 
 ## 配置语音服务
 
@@ -151,8 +151,8 @@ Fun-ASR 在录音时持续发送 PCM 音频并接收实时结果；Qwen3.5 Flash
 2. 单击一次 `fn`，底部胶囊出现 **Listening…**；
 3. 自然说话；
 4. 再单击一次 `fn`，进入 **Thinking…**；
-5. 识别和整理完成后，Thinking 浮层先消失，再立即写回原输入框；
-6. 成功写入不再显示额外状态；若没有可写入的输入框，结果会复制到剪贴板并提示按 `⌘V`。
+5. 识别和整理完成后，Thinking 浮层先消失，再向此刻的系统键盘焦点发送 `⌘V`；
+6. 成功发送后不再显示额外状态；最终文本会保留在剪贴板，必要时可再次按 `⌘V`。
 
 听写时按 `Esc` 会取消本次录音。Sotto 对 `fn` 有约 120ms 的防误触判断；`fn` 与 F 功能键、方向键或其他组合键一起使用时不会触发听写。也可以从菜单栏选择 **Start Listening / Stop Listening**。
 
@@ -182,7 +182,7 @@ Fun-ASR 在录音时持续发送 PCM 音频并接收实时结果；Qwen3.5 Flash
 - Apple notarization 和 stapling
 - 在干净 Mac 上验证首次权限流程及更新后的权限保留
 
-完整版依赖 Accessibility 读取并写回其他 App 的输入框，而 Mac App Store 强制启用 App Sandbox；因此当前推荐渠道是 Developer ID 签名并公证的独立 DMG，而不是 Mac App Store。若将来一定要上架，需要另做只复制到剪贴板的沙盒版。
+完整版依赖 Accessibility 监听全局 `fn` 并向其他 App 的当前键盘焦点发送粘贴，而 Mac App Store 强制启用 App Sandbox；因此当前推荐渠道是 Developer ID 签名并公证的独立 DMG，而不是 Mac App Store。若将来一定要上架，需要另做只复制到剪贴板的沙盒版。
 
 ## 常见问题
 
@@ -192,7 +192,7 @@ Fun-ASR 在录音时持续发送 PCM 音频并接收实时结果；Qwen3.5 Flash
 
 **识别成功但没有自动写入**
 
-检查辅助功能权限和原输入焦点。安全输入框、焦点已经变化或不支持辅助功能写入的控件会改为复制到剪贴板；按提示使用 `⌘V` 手动粘贴。
+检查辅助功能权限，并确认 Thinking 消失时光标仍在希望输入的位置。Sotto 已把结果保留在剪贴板，可直接按 `⌘V` 重试。
 
 **Fun-ASR 返回未授权**
 
