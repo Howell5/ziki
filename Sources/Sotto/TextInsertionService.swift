@@ -268,7 +268,7 @@ final class TextInsertionService {
     private func validatedCurrentTarget(
         _ target: FocusedTextTarget
     ) -> FocusedTextTarget? {
-        guard frontmostExternalProcessIDs().contains(target.processID) else {
+        guard isInFrontmostProcessFamily(target.processID) else {
             return nil
         }
 
@@ -276,14 +276,15 @@ final class TextInsertionService {
         let systemFocusedElement = focusedElement(
             from: AXUIElementCreateSystemWide()
         )
-        var systemFocusedProcessID: pid_t?
+        var systemFocusIsInTargetFamily: Bool?
         if let systemFocusedElement {
             var processID: pid_t = 0
             if AXUIElementGetPid(
                 systemFocusedElement,
                 &processID
             ) == .success {
-                systemFocusedProcessID = processID
+                systemFocusIsInTargetFamily =
+                    isInFrontmostProcessFamily(processID)
             }
         }
         let applicationFocusedElement = focusedElement(from: application)
@@ -291,8 +292,8 @@ final class TextInsertionService {
             attribute("AXFocused", from: target.element) as? Bool == true
         let focusedElement: AXUIElement?
         switch CurrentFocusValidationSourcePolicy.choose(
-            systemWideFocusedProcessID: systemFocusedProcessID,
-            targetProcessID: target.processID,
+            systemWideFocusIsInTargetFamily:
+                systemFocusIsInTargetFamily,
             applicationFocusIsAvailable:
                 applicationFocusedElement != nil || targetReportsFocused
         ) {
@@ -423,7 +424,13 @@ final class TextInsertionService {
         var processID: pid_t = 0
         guard AXUIElementGetPid(element, &processID) == .success,
               processID != ProcessInfo.processInfo.processIdentifier,
-              expectedProcessID.map({ $0 == processID }) ?? true,
+              expectedProcessID.map({
+                  ProcessFamilyPolicy.isMember(
+                      processID: processID,
+                      familyRootProcessID: $0,
+                      parentOf: parentProcessID(of:)
+                  )
+              }) ?? true,
               let normalizedElement = normalizedEditableElement(from: element)
         else {
             return nil
@@ -450,8 +457,19 @@ final class TextInsertionService {
         FocusProcessFreshnessPolicy.isCurrent(
             resolvedProcessID: focus.processID,
             eligibleFrontmostProcessIDs:
-                eligibleProcessIDs ?? frontmostExternalProcessIDs()
+                eligibleProcessIDs ?? frontmostExternalProcessIDs(),
+            parentOf: parentProcessID(of:)
         )
+    }
+
+    private func isInFrontmostProcessFamily(_ processID: pid_t) -> Bool {
+        frontmostExternalProcessIDs().contains {
+            ProcessFamilyPolicy.isMember(
+                processID: processID,
+                familyRootProcessID: $0,
+                parentOf: parentProcessID(of:)
+            )
+        }
     }
 
     private func makeTarget(from focus: ResolvedFocus) -> FocusedTextTarget {
