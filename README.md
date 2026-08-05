@@ -144,7 +144,7 @@ Fun-ASR 在录音时持续发送 PCM 音频并接收实时结果；Qwen3.5 Flash
 
 不同区域的 API Key 和 endpoint 不能混用。如果返回未授权错误，先检查区域，再检查 Key。
 
-整理默认开启，可在 **语音 → 自动整理口述内容** 中关闭。API Key 保存在 macOS Keychain；Workspace ID 和区域等非机密设置保存在 UserDefaults。
+整理默认开启，可在 **语音 → 自动整理口述内容** 中关闭。整理输出始终跟随说话语言：中文口述输出中文，英文口述输出英文，不会翻译；中英混排、代码、术语和专有名词会原样保留。API Key 保存在 macOS Keychain；Workspace ID 和区域等非机密设置保存在 UserDefaults。
 
 ## 使用 Fn toggle
 
