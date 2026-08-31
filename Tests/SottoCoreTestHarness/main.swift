@@ -1130,6 +1130,21 @@ private func testTranscriptGuardRejectsExtremeExpansion() throws {
     )
 }
 
+private func testTranscriptGuardAllowsNumberedListFormatting() throws {
+    let guardrail = TranscriptGuard()
+
+    let decision = guardrail.evaluate(
+        raw: "两个任务：查登录 bug，补测试",
+        polished: "两个任务：\n1. 查登录 bug。\n2. 补测试。"
+    )
+
+    try expect(
+        decision,
+        equals: .usePolished("两个任务：\n1. 查登录 bug。\n2. 补测试。"),
+        "numbered list formatting decision"
+    )
+}
+
 private func littleEndianUInt32(_ data: Data, at offset: Int) -> UInt32 {
     let bytes = data[offset..<(offset + 4)]
     return bytes.enumerated().reduce(0) { value, item in
@@ -1546,12 +1561,13 @@ private func testBailianCleanupIsEnabledByDefault() throws {
     )
 }
 
-private func testBailianCleanupRequestDisablesThinkingAndEncodesCorrectionRule() throws {
+private func testBailianCleanupRequestEncodesContextAwareCleanupPolicy() throws {
     let data = try BailianCleanupWire.makeRequest(
         rawTranscript: "今晚6点吃饭，哦不，改成8点。"
     )
     let root = try jsonDictionary(data)
     let messages = root["messages"] as? [[String: Any]]
+    let systemPrompt = messages?.first?["content"] as? String ?? ""
 
     try expect(root["model"] as? String, equals: "qwen3.5-flash", "cleanup model")
     try expect(root["enable_thinking"] as? Bool, equals: false, "cleanup thinking mode")
@@ -1559,9 +1575,30 @@ private func testBailianCleanupRequestDisablesThinkingAndEncodesCorrectionRule()
     try expect(root["max_tokens"] as? Int, equals: 1_024, "cleanup output limit")
     try expect(messages?.first?["role"] as? String, equals: "system", "cleanup system role")
     try expect(
-        (messages?.first?["content"] as? String)?.contains("superseded value") ?? false,
+        systemPrompt.contains("superseded value"),
         equals: true,
         "cleanup explicit correction rule"
+    )
+    try expect(
+        systemPrompt.contains("Read the entire transcript before editing")
+            && systemPrompt.contains("whole transcript strongly supports")
+            && systemPrompt.contains("\"Agent\""),
+        equals: true,
+        "cleanup uses full context to recover likely ASR substitutions"
+    )
+    try expect(
+        systemPrompt.contains("assigning tasks")
+            && systemPrompt.contains("bugs, features, or ideas")
+            && systemPrompt.contains("Do not force a list"),
+        equals: true,
+        "cleanup applies numbered lists only when context benefits"
+    )
+    try expect(
+        systemPrompt.contains("verbal tics")
+            && systemPrompt.contains("Every result must be coherent, tidy written text")
+            && systemPrompt.contains("customer-facing speech polished"),
+        equals: true,
+        "cleanup always produces tidy grammatical writing"
     )
     try expect(
         (messages?.last?["content"] as? String)?.contains("今晚6点吃饭，哦不，改成8点。") ?? false,
@@ -1968,6 +2005,10 @@ private enum SottoCoreTestHarness {
                 testTranscriptGuardRejectsExtremeExpansion
             ),
             (
+                "Transcript guard allows numbered list formatting",
+                testTranscriptGuardAllowsNumberedListFormatting
+            ),
+            (
                 "WAV encoder builds canonical PCM16 header",
                 testWAVEncoderBuildsCanonicalPCM16Header
             ),
@@ -2060,8 +2101,8 @@ private enum SottoCoreTestHarness {
                 testBailianCleanupIsEnabledByDefault
             ),
             (
-                "Bailian cleanup request disables thinking and encodes correction rule",
-                testBailianCleanupRequestDisablesThinkingAndEncodesCorrectionRule
+                "Bailian cleanup request encodes context-aware cleanup policy",
+                testBailianCleanupRequestEncodesContextAwareCleanupPolicy
             ),
             (
                 "Bailian cleanup system prompt matches speaker language",

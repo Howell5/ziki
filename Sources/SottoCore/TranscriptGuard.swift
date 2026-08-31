@@ -65,11 +65,26 @@ public struct TranscriptGuard: Sendable {
             guard let swiftRange = Range(match.range, in: text) else {
                 return nil
             }
+            guard !isListOrdinal(swiftRange, in: text) else {
+                return nil
+            }
             return ProtectedToken(
                 value: normalizeProtectedToken(String(text[swiftRange])),
                 range: match.range
             )
         }
+    }
+
+    private func isListOrdinal(_ range: Range<String.Index>, in text: String) -> Bool {
+        let lineStart = text[..<range.lowerBound].lastIndex(of: "\n")
+            .map { text.index(after: $0) } ?? text.startIndex
+        guard text[lineStart..<range.lowerBound].allSatisfy(\.isWhitespace) else {
+            return false
+        }
+
+        let suffix = text[range.upperBound...]
+        return suffix.hasPrefix(". ") || suffix.hasPrefix("、") || suffix.hasPrefix(") ")
+            || suffix.hasPrefix("）")
     }
 
     private func explicitlySupersededTokenIndexes(
