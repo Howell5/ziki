@@ -4,12 +4,12 @@ public enum FunASRServiceRegion: Equatable, Sendable {
     case mainlandChina
     case singapore
 
-    fileprivate var sharedWebSocketHost: String {
+    fileprivate var workspaceHostSuffix: String {
         switch self {
         case .mainlandChina:
-            "dashscope.aliyuncs.com"
+            "cn-beijing.maas.aliyuncs.com"
         case .singapore:
-            "dashscope-intl.aliyuncs.com"
+            "ap-southeast-1.maas.aliyuncs.com"
         }
     }
 }
@@ -28,8 +28,8 @@ public struct FunASRConnectionRoute: Equatable, Sendable {
 
         var components = URLComponents()
         components.scheme = "wss"
-        components.host = region.sharedWebSocketHost
-        components.path = "/api-ws/v1/inference/"
+        components.host = "\(workspaceID).\(region.workspaceHostSuffix)"
+        components.path = "/api-ws/v1/inference"
         guard let endpoint = components.url else { return nil }
 
         return FunASRConnectionRoute(

@@ -1517,19 +1517,28 @@ private func testBailianWorkspaceInputExtractsIDFromConsoleAPIHost() throws {
     )
 }
 
-private func testFunConnectionRouteUsesSharedEndpointAndWorkspaceHeader() throws {
-    let route = FunASRConnectionRoute.resolve(
+private func testFunConnectionRouteUsesWorkspaceEndpointAndHeader() throws {
+    let mainlandRoute = FunASRConnectionRoute.resolve(
         region: .mainlandChina,
         workspaceInput: "https://llm-exampleworkspace123.cn-beijing.maas.aliyuncs.com/compatible-mode/v1"
     )
+    let singaporeRoute = FunASRConnectionRoute.resolve(
+        region: .singapore,
+        workspaceInput: "llm-exampleworkspace123"
+    )
 
     try expect(
-        route?.endpoint.absoluteString,
-        equals: "wss://dashscope.aliyuncs.com/api-ws/v1/inference/",
-        "Fun-ASR realtime endpoint"
+        mainlandRoute?.endpoint.absoluteString,
+        equals: "wss://llm-exampleworkspace123.cn-beijing.maas.aliyuncs.com/api-ws/v1/inference",
+        "Fun-ASR mainland workspace endpoint"
     )
     try expect(
-        route?.workspaceHeaderValue,
+        singaporeRoute?.endpoint.absoluteString,
+        equals: "wss://llm-exampleworkspace123.ap-southeast-1.maas.aliyuncs.com/api-ws/v1/inference",
+        "Fun-ASR Singapore workspace endpoint"
+    )
+    try expect(
+        mainlandRoute?.workspaceHeaderValue,
         equals: "llm-exampleworkspace123",
         "Fun-ASR workspace header"
     )
@@ -2089,8 +2098,8 @@ private enum SottoCoreTestHarness {
                 testBailianWorkspaceInputExtractsIDFromConsoleAPIHost
             ),
             (
-                "Fun connection route uses shared endpoint and workspace header",
-                testFunConnectionRouteUsesSharedEndpointAndWorkspaceHeader
+                "Fun connection route uses workspace endpoint and header",
+                testFunConnectionRouteUsesWorkspaceEndpointAndHeader
             ),
             (
                 "Bailian cleanup route reuses workspace and region",
