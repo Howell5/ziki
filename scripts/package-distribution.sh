@@ -20,7 +20,11 @@ for tool in hdiutil ditto; do
     fi
 done
 
-"$SCRIPT_DIR/package-app.sh"
+if [[ -n "${SOTTO_CODESIGN_IDENTITY:-}" ]]; then
+    "$SCRIPT_DIR/package-app.sh"
+else
+    "$SCRIPT_DIR/package-dev-app.sh"
+fi
 
 STAGING_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/sotto-distribution.XXXXXX")"
 DMG_SOURCE="$STAGING_ROOT/dmg"

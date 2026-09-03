@@ -2,7 +2,7 @@
 
 Sotto 是一个专注于 macOS 的原生语音输入 App：单击 `fn` 开始说话，再次单击 `fn`，把识别并整理后的文本粘贴到完成处理时的系统键盘焦点。
 
-当前 Apple Silicon 测试版可从 [GitHub Releases](https://github.com/Howell5/sotto/releases/tag/v0.2.12) 下载。
+当前 Apple Silicon 测试版可从 [GitHub Releases](https://github.com/Howell5/sotto/releases/tag/v0.2.13) 下载。
 
 首版只保留这条核心闭环：
 
@@ -17,9 +17,9 @@ Sotto 是一个专注于 macOS 的原生语音输入 App：单击 `fn` 开始说
 
 ## 安装 GitHub 预览版
 
-当前发布包面向 Apple Silicon，支持 macOS 13 及以上版本。项目目前选择零成本分发，因此 GitHub 预览版使用 ad-hoc 签名，未经过 Apple Developer ID 签名和公证。
+当前发布包面向 Apple Silicon，支持 macOS 13 及以上版本。项目目前选择零成本分发，因此维护者构建使用固定的本地自签名证书，未经过 Apple Developer ID 签名和公证。
 
-1. 只从 [Sotto GitHub Release](https://github.com/Howell5/sotto/releases/tag/v0.2.12) 下载 DMG；同页的 `SHA256SUMS.txt` 可用于校验文件。
+1. 只从 [Sotto GitHub Release](https://github.com/Howell5/sotto/releases/tag/v0.2.13) 下载 DMG；同页的 `SHA256SUMS.txt` 可用于校验文件。
 2. 打开 DMG，把 Sotto 拖入 **Applications**。
 3. 首次打开如果被 macOS 阻止，先尝试右键 Sotto 并选择 **打开**。
 4. 如果仍被阻止，先触发一次打开，再进入“系统设置 → 隐私与安全性”，只对 Sotto 点击 **仍要打开**，验证本机密码后确认打开。
@@ -27,7 +27,7 @@ Sotto 是一个专注于 macOS 的原生语音输入 App：单击 `fn` 开始说
 
 不要全局关闭 Gatekeeper，也不要运行来源不明的“解除签名限制”命令。公司或学校管理的 Mac 可能禁止“仍要打开”，这种设备需要管理员允许。
 
-API Key 保存在 macOS Keychain。首次保存或首次运行一个新发布包时，系统可能询问 Sotto 是否可访问对应项目；仅当安装包来自上述官方仓库时选择 **始终允许**。由于公开预览包没有稳定的 Developer ID，升级后 macOS 仍有可能再次询问。
+API Key 保存在 macOS Keychain。首次保存或首次从旧 ad-hoc 签名迁移到固定本地签名时，系统可能询问 Sotto 是否可访问对应项目；确认来源后选择 **始终允许**。同一台维护者 Mac 使用相同证书、Bundle ID 和安装路径升级时，后续版本不应继续反复询问。其他 Mac 不信任这张本地证书，公开分发仍需 Developer ID。
 
 ## 系统要求
 
@@ -106,7 +106,7 @@ open outputs/Sotto.app
 
 脚本会固定使用 `Sotto Local Development`，并为本机自签名禁用无意义的在线时间戳请求。第一次让 `/usr/bin/codesign` 使用证书私钥时，Keychain 仍可能询问一次；确认是系统的 `codesign` 后选择 **始终允许**。从旧 ad-hoc 构建切换过来时，Sotto 读取现有 API Key 也可能再询问一次；固定签名后的后续重建不应继续反复弹窗。
 
-这个自签名证书只解决本机开发身份稳定性，不能替代 Apple 公证，也不要用它制作给朋友下载的发布包。若证书使用其他名称，可以这样指定：
+这个自签名证书只解决本机身份稳定性，不能替代 Apple 公证，也不要把它当作公开可信的签名。若证书使用其他名称，可以这样指定：
 
 ```bash
 SOTTO_DEVELOPMENT_CODESIGN_IDENTITY="Your Local Code Signing" \
@@ -176,9 +176,9 @@ Fun-ASR 在录音时持续发送 PCM 音频并接收实时结果；Qwen3.5 Flash
 
 ## 分发状态
 
-打开 `outputs/Sotto-0.2.12-macOS-arm64.dmg`，将 Sotto 拖入 **Applications**。之后可以从 Dock、Spotlight、Launchpad、Finder 或菜单栏打开；再次点击 Dock 图标会恢复设置窗口。
+打开 `outputs/Sotto-0.2.13-macOS-arm64.dmg`，将 Sotto 拖入 **Applications**。之后可以从 Dock、Spotlight、Launchpad、Finder 或菜单栏打开；再次点击 Dock 图标会恢复设置窗口。
 
-当前项目选择零成本预览分发，产物默认使用 ad-hoc 签名，**尚未 notarize**。它可以分享给朋友测试，但 Gatekeeper 会提示未验证的开发者；版本更新后，麦克风、辅助功能或 Keychain 授权也可能需要重新确认。
+当前项目选择零成本分发，`package-distribution.sh` 默认使用 `Sotto Local Development` 固定本地签名，**尚未 notarize**。这能让维护者 Mac 在版本更新后保持同一应用身份，但其他 Mac 不会自动信任该证书，Gatekeeper 仍会提示未验证的开发者。
 
 本机直接构建通常可以正常打开。如果 app 经浏览器或聊天工具下载，Gatekeeper 可能阻止首次启动。请先尝试右键 app 选择 **打开**；如仍被阻止，到“系统设置 → 隐私与安全性”对这一个 app 选择 **仍要打开**。不要全局关闭 Gatekeeper。
 
