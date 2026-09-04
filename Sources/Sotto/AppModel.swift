@@ -79,6 +79,7 @@ final class AppModel: ObservableObject {
     private let audioTransport = AudioTransportRunner()
     private let textInsertion = TextInsertionService()
     private let transcriptGuard = TranscriptGuard()
+    private let diagnosticsStore = DictationDiagnosticsStore()
     private let insertionReadiness = AppModelInsertionReadiness()
     private lazy var outputCoordinator = DictationOutputCoordinator(
         history: historyStore,
@@ -88,6 +89,8 @@ final class AppModel: ObservableObject {
 
     private var activeSession: (any ASRSession)?
     private var activeSessionID: UUID?
+    private var diagnosticSessionID: UUID?
+    private var activeLatestASRText = ""
     private var pcmContinuation: AsyncStream<Data>.Continuation?
     private var transportTask: Task<Void, Never>?
     private var eventTask: Task<Void, Never>?
@@ -95,7 +98,6 @@ final class AppModel: ObservableObject {
     private var connectionTestTask: Task<Void, Never>?
     private var connectionTestSession: (any ASRSession)?
     private var connectionTestID: UUID?
-    private var activeSessionHasRecognizedContent = false
     private var pendingHistoryProviderID: String?
     private var cachedCredentials: [KeychainStore.Credential: String] = [:]
     private var loadedCredentials = Set<KeychainStore.Credential>()
@@ -202,6 +204,15 @@ final class AppModel: ObservableObject {
 
     func openHistory() {
         settingsNavigationCoordinator.openHistory()
+    }
+
+    func openDiagnosticsFolder() {
+        guard diagnosticsStore.prepareDirectoryForViewing() else { return }
+        NSWorkspace.shared.open(diagnosticsStore.directoryURL)
+    }
+
+    func clearDiagnostics() {
+        diagnosticsStore.removeAll()
     }
 
     func restoreSettingsAfterPermissionPrompt() {
@@ -521,6 +532,12 @@ final class AppModel: ObservableObject {
                 stopCaptureAndFinishStream()
 
             case .cancelRecording:
+                if let diagnosticSessionID {
+                    diagnosticsStore.recordOutcome(
+                        sessionID: diagnosticSessionID,
+                        outcome: "cancelled"
+                    )
+                }
                 cancelActiveSession()
                 statusDetail = "Cancelled"
 
@@ -566,8 +583,18 @@ final class AppModel: ObservableObject {
         )
         let sessionID = UUID()
         activeSessionID = sessionID
-        activeSessionHasRecognizedContent = false
+        diagnosticSessionID = settings.diagnosticsEnabled ? sessionID : nil
+        activeLatestASRText = ""
         pendingHistoryProviderID = provider.rawValue
+        if diagnosticSessionID != nil {
+            diagnosticsStore.begin(
+                sessionID: sessionID,
+                providerID: provider.rawValue,
+                regionID: request.funRegion.rawValue,
+                sampleRate: request.configuration.sampleRate,
+                cleanupEnabled: settings.cleanupEnabled
+            )
+        }
         let pipe = AsyncStream<Data>.makeStream(bufferingPolicy: .unbounded)
         pcmContinuation = pipe.continuation
 
@@ -585,11 +612,29 @@ final class AppModel: ObservableObject {
                 onError: { [weak self] error in
                     let message = error.localizedDescription
                     Task { @MainActor [weak self] in
+                        if self?.diagnosticSessionID == sessionID {
+                            self?.diagnosticsStore.recordFailure(
+                                sessionID: sessionID,
+                                stage: "audio_capture",
+                                message: message
+                            )
+                        }
                         self?.transitionToFailure(message, sessionID: sessionID)
                     }
                 }
             )
+            if diagnosticSessionID == sessionID {
+                diagnosticsStore.recordStage(
+                    sessionID: sessionID,
+                    stage: "recording_started"
+                )
+            }
         } catch {
+            diagnosticsStore.recordFailure(
+                sessionID: sessionID,
+                stage: "audio_capture",
+                message: error.localizedDescription
+            )
             transitionToFailure(error.localizedDescription, sessionID: sessionID)
             return
         }
@@ -630,6 +675,11 @@ final class AppModel: ObservableObject {
               activeSessionID == sessionID
         else {
             if activeSessionID == sessionID {
+                diagnosticsStore.recordFailure(
+                    sessionID: sessionID,
+                    stage: "configuration",
+                    message: "API Key unavailable"
+                )
                 transitionToFailure("请先配置语音服务 API Key", sessionID: sessionID)
             }
             return
@@ -682,6 +732,14 @@ final class AppModel: ObservableObject {
         audioLevel = 0
         audioInputNotice = nil
         let capturedPCM = microphone.stop()
+        if let diagnosticSessionID {
+            diagnosticsStore.recordAudio(
+                sessionID: diagnosticSessionID,
+                pcm16: capturedPCM,
+                sampleRate: 16_000,
+                asrTextAtStop: activeLatestASRText
+            )
+        }
         if EmptyDictationPolicy.isTriviallyShortPCM16(
             byteCount: capturedPCM.count,
             sampleRate: 16_000
@@ -698,22 +756,36 @@ final class AppModel: ObservableObject {
 
         switch event {
         case .ready:
+            diagnosticsStore.recordStage(
+                sessionID: sessionID,
+                stage: "asr_ready"
+            )
             statusDetail = phase == .listening ? "Listening · connected" : "Finishing audio"
 
-        case let .hypothesis(fullText), let .segmentFinal(fullText):
-            if !fullText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                activeSessionHasRecognizedContent = true
-            }
+        case let .hypothesis(fullText):
+            activeLatestASRText = fullText
             // Live words stay out of the overlay for privacy and distraction control.
             break
 
-        case let .completed(fullText, _):
+        case let .segmentFinal(fullText):
+            activeLatestASRText = fullText
+            diagnosticsStore.recordASRProgress(
+                sessionID: sessionID,
+                text: fullText
+            )
+
+        case let .completed(fullText, billedSeconds):
             let transcript = fullText.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !transcript.isEmpty else {
                 completeSession(sessionID)
                 discardNoSpeech()
                 return
             }
+            diagnosticsStore.recordASRCompletion(
+                sessionID: sessionID,
+                text: transcript,
+                billedSeconds: billedSeconds
+            )
             completeSession(sessionID)
             lastServiceError = nil
             apply(.transcriptionSucceeded(transcript))
@@ -728,26 +800,27 @@ final class AppModel: ObservableObject {
         if let failure = error as? ASRFailure {
             handleASRFailure(failure, sessionID: sessionID)
         } else {
+            diagnosticsStore.recordFailure(
+                sessionID: sessionID,
+                stage: "asr_transport",
+                message: error.localizedDescription
+            )
             transitionToFailure("无法连接语音服务", sessionID: sessionID)
         }
     }
 
     private func handleASRFailure(_ failure: ASRFailure, sessionID: UUID) {
         guard activeSessionID == sessionID else { return }
-        if EmptyDictationPolicy.shouldSilentlyDiscard(
-            failureKind: failure.kind,
-            hasRecognizedContent: activeSessionHasRecognizedContent
-        ) {
-            Self.logger.info(
-                "Discarding empty dictation after provider code=\(failure.providerCode ?? "none", privacy: .public)"
-            )
-            discardNoSpeech()
-            return
-        }
         transitionToFailure(failure, sessionID: sessionID)
     }
 
     private func discardNoSpeech() {
+        if let diagnosticSessionID {
+            diagnosticsStore.recordOutcome(
+                sessionID: diagnosticSessionID,
+                outcome: "discarded_no_speech"
+            )
+        }
         cancelActiveSession()
         lastServiceError = nil
         statusDetail = "Ready"
@@ -756,6 +829,7 @@ final class AppModel: ObservableObject {
 
     private func polishTranscript(_ rawText: String) async {
         var finalText = rawText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let diagnosticSessionID = self.diagnosticSessionID
 
         if settings.cleanupEnabled,
            let route = BailianCleanupRoute.resolve(
@@ -771,16 +845,61 @@ final class AppModel: ObservableObject {
                 switch transcriptGuard.evaluate(raw: rawText, polished: candidate) {
                 case let .usePolished(text):
                     finalText = text
+                    if let diagnosticSessionID {
+                        diagnosticsStore.recordCleanup(
+                            sessionID: diagnosticSessionID,
+                            candidate: candidate,
+                            decision: "use_polished",
+                            finalText: finalText
+                        )
+                    }
                 case let .useOriginal(text, reason):
                     finalText = text
                     statusDetail = "Cleanup rejected (\(String(describing: reason))); using transcript"
+                    if let diagnosticSessionID {
+                        diagnosticsStore.recordCleanup(
+                            sessionID: diagnosticSessionID,
+                            candidate: candidate,
+                            decision: "use_original_\(String(describing: reason))",
+                            finalText: finalText
+                        )
+                    }
                 }
             } catch {
+                let partialText: String?
+                if case let TranscriptPolisherError.truncatedResponse(text) = error {
+                    partialText = text
+                } else {
+                    partialText = nil
+                }
+                if let diagnosticSessionID {
+                    diagnosticsStore.recordFailure(
+                        sessionID: diagnosticSessionID,
+                        stage: "cleanup",
+                        message: error.localizedDescription,
+                        partialText: partialText
+                    )
+                    diagnosticsStore.recordCleanup(
+                        sessionID: diagnosticSessionID,
+                        candidate: partialText,
+                        decision: "use_original_after_cleanup_failure",
+                        finalText: finalText
+                    )
+                }
                 Self.logger.error(
                     "Cleanup failed: \(error.localizedDescription, privacy: .private(mask: .hash))"
                 )
                 statusDetail = "Cleanup unavailable; using transcript"
             }
+        } else if let diagnosticSessionID {
+            diagnosticsStore.recordCleanup(
+                sessionID: diagnosticSessionID,
+                candidate: nil,
+                decision: settings.cleanupEnabled
+                    ? "use_original_cleanup_unavailable"
+                    : "cleanup_disabled",
+                finalText: finalText
+            )
         }
 
         apply(.transcriptPolished(finalText))
@@ -806,15 +925,38 @@ final class AppModel: ObservableObject {
 
         switch outcome {
         case .inserted:
+            if let diagnosticSessionID {
+                diagnosticsStore.recordOutcome(
+                    sessionID: diagnosticSessionID,
+                    outcome: "inserted"
+                )
+            }
+            self.diagnosticSessionID = nil
             statusDetail = "Ready"
             apply(.insertionSucceeded)
         case let .copied(message):
+            if let diagnosticSessionID {
+                diagnosticsStore.recordOutcome(
+                    sessionID: diagnosticSessionID,
+                    outcome: "copied_after_insertion_failure",
+                    detail: message
+                )
+            }
+            self.diagnosticSessionID = nil
             statusDetail = message
             apply(.operationFailed(message: message, recoveryText: finalText))
         case nil:
             let message = ClipboardRecoveryCopy.message(
                 reason: "无法关闭听写状态"
             )
+            if let diagnosticSessionID {
+                diagnosticsStore.recordFailure(
+                    sessionID: diagnosticSessionID,
+                    stage: "delivery",
+                    message: message
+                )
+            }
+            self.diagnosticSessionID = nil
             statusDetail = message
             apply(
                 .operationFailed(
@@ -842,6 +984,11 @@ final class AppModel: ObservableObject {
     private func transitionToFailure(_ failure: ASRFailure, sessionID: UUID) {
         let diagnostic = ASRFailurePresenter.diagnosticSummary(for: failure)
         lastServiceError = diagnostic
+        diagnosticsStore.recordFailure(
+            sessionID: sessionID,
+            stage: "asr",
+            message: diagnostic
+        )
         Self.logger.error(
             "ASR failed: code=\(failure.providerCode ?? "none", privacy: .public) detail=\(diagnostic, privacy: .private(mask: .hash))"
         )
@@ -852,7 +999,6 @@ final class AppModel: ObservableObject {
         guard activeSessionID == sessionID else { return }
         activeSessionID = nil
         activeSession = nil
-        activeSessionHasRecognizedContent = false
         pcmContinuation = nil
         transportTask = nil
         eventTask = nil
@@ -866,8 +1012,9 @@ final class AppModel: ObservableObject {
         let session = activeSession
         activeSessionID = nil
         activeSession = nil
-        activeSessionHasRecognizedContent = false
+        activeLatestASRText = ""
         pendingHistoryProviderID = nil
+        diagnosticSessionID = nil
 
         _ = microphone.stop()
         pcmContinuation?.finish()

@@ -1,11 +1,4 @@
 public enum EmptyDictationPolicy {
-    public static func shouldSilentlyDiscard(
-        failureKind: ASRFailureKind,
-        hasRecognizedContent: Bool
-    ) -> Bool {
-        failureKind == .badInput && !hasRecognizedContent
-    }
-
     public static func isTriviallyShortPCM16(
         byteCount: Int,
         sampleRate: Int

@@ -780,36 +780,6 @@ private func testNoSpeechWhileProcessingReturnsDirectlyToIdle() throws {
     try expect(effects, equals: [], "no speech effects")
 }
 
-private func testEmptyDictationTreatsBadInputWithoutTranscriptAsNoSpeech() throws {
-    try expect(
-        EmptyDictationPolicy.shouldSilentlyDiscard(
-            failureKind: .badInput,
-            hasRecognizedContent: false
-        ),
-        equals: true,
-        "bad input without recognized content"
-    )
-}
-
-private func testEmptyDictationKeepsRealServiceFailuresVisible() throws {
-    try expect(
-        EmptyDictationPolicy.shouldSilentlyDiscard(
-            failureKind: .unauthorized,
-            hasRecognizedContent: false
-        ),
-        equals: false,
-        "authorization failure without recognized content"
-    )
-    try expect(
-        EmptyDictationPolicy.shouldSilentlyDiscard(
-            failureKind: .badInput,
-            hasRecognizedContent: true
-        ),
-        equals: false,
-        "bad input after recognized content"
-    )
-}
-
 private func testEmptyDictationDiscardsOnlyTrulyTinyLocalCapture() throws {
     try expect(
         EmptyDictationPolicy.isTriviallyShortPCM16(
@@ -1167,6 +1137,68 @@ private func testWAVEncoderBuildsCanonicalPCM16Header() throws {
     try expect(littleEndianUInt32(wav, at: 24), equals: 16_000, "sample rate")
     try expect(littleEndianUInt32(wav, at: 40), equals: 4, "audio byte count")
     try expect(Array(wav.suffix(4)), equals: Array(pcm), "PCM payload")
+}
+
+private func testDiagnosticsStorePersistsAudioAndPipelineStages() throws {
+    let directory = FileManager.default.temporaryDirectory
+        .appendingPathComponent("sotto-diagnostics-\(UUID().uuidString)")
+    defer { try? FileManager.default.removeItem(at: directory) }
+
+    let sessionID = UUID(uuidString: "8CA4EB68-F2A2-44E4-BD23-8BC136972090")!
+    var timestamp = Date(timeIntervalSince1970: 10_000)
+    let store = DictationDiagnosticsStore(
+        directoryURL: directory,
+        now: { timestamp }
+    )
+    store.begin(
+        sessionID: sessionID,
+        providerID: "fun-asr",
+        regionID: "mainland",
+        sampleRate: 16_000,
+        cleanupEnabled: true
+    )
+    timestamp.addTimeInterval(1)
+    store.recordAudio(
+        sessionID: sessionID,
+        pcm16: Data(repeating: 0x01, count: 32_000),
+        sampleRate: 16_000,
+        asrTextAtStop: "原始文本"
+    )
+    store.recordASRCompletion(
+        sessionID: sessionID,
+        text: "完整原始文本",
+        billedSeconds: 1
+    )
+    store.recordCleanup(
+        sessionID: sessionID,
+        candidate: "整理文本",
+        decision: "use_polished",
+        finalText: "整理文本"
+    )
+    store.recordOutcome(sessionID: sessionID, outcome: "inserted")
+
+    let sessionDirectory = directory.appendingPathComponent(
+        sessionID.uuidString.lowercased()
+    )
+    let decoder = JSONDecoder()
+    decoder.dateDecodingStrategy = .iso8601
+    let document = try decoder.decode(
+        DictationDiagnosticDocument.self,
+        from: Data(
+            contentsOf: sessionDirectory.appendingPathComponent("session.json")
+        )
+    )
+    let wav = try Data(
+        contentsOf: sessionDirectory.appendingPathComponent("audio.wav")
+    )
+
+    try expect(document.capturedAudioBytes, equals: 32_000, "diagnostic audio bytes")
+    try expect(document.capturedAudioDurationSeconds, equals: 1, "diagnostic duration")
+    try expect(document.asrTextAtStop, equals: "原始文本", "diagnostic ASR at stop")
+    try expect(document.asrFinalText, equals: "完整原始文本", "diagnostic final ASR")
+    try expect(document.qwenCandidateText, equals: "整理文本", "diagnostic Qwen result")
+    try expect(document.outcome, equals: "inserted", "diagnostic outcome")
+    try expect(String(data: wav[0..<4], encoding: .ascii), equals: "RIFF", "diagnostic WAV")
 }
 
 private func jsonDictionary(_ data: Data) throws -> [String: Any] {
@@ -1581,7 +1613,11 @@ private func testBailianCleanupRequestEncodesContextAwareCleanupPolicy() throws 
     try expect(root["model"] as? String, equals: "qwen3.5-flash", "cleanup model")
     try expect(root["enable_thinking"] as? Bool, equals: false, "cleanup thinking mode")
     try expect(root["temperature"] as? Double, equals: 0, "cleanup temperature")
-    try expect(root["max_tokens"] as? Int, equals: 1_024, "cleanup output limit")
+    try expect(
+        root["max_tokens"] as? Int,
+        equals: BailianCleanupPolicy.maxOutputTokens,
+        "cleanup output limit"
+    )
     try expect(messages?.first?["role"] as? String, equals: "system", "cleanup system role")
     try expect(
         systemPrompt.contains("superseded value"),
@@ -1614,6 +1650,25 @@ private func testBailianCleanupRequestEncodesContextAwareCleanupPolicy() throws 
         equals: true,
         "cleanup raw transcript payload"
     )
+}
+
+private func testBailianCleanupResponseDetectsTruncation() throws {
+    let completed = try BailianCleanupWire.decodeResponse(
+        Data(
+            #"{"choices":[{"message":{"content":"完整文字"},"finish_reason":"stop"}]}"#
+                .utf8
+        )
+    )
+    let truncated = try BailianCleanupWire.decodeResponse(
+        Data(
+            #"{"choices":[{"message":{"content":"只有片段"},"finish_reason":"length"}]}"#
+                .utf8
+        )
+    )
+
+    try expect(completed.wasTruncated, equals: false, "completed cleanup response")
+    try expect(truncated.wasTruncated, equals: true, "truncated cleanup response")
+    try expect(truncated.text, equals: "只有片段", "truncated cleanup partial text")
 }
 
 private func testBailianCleanupSystemPromptMatchesSpeakerLanguage() throws {
@@ -1906,14 +1961,6 @@ private enum SottoCoreTestHarness {
                 testNoSpeechWhileProcessingReturnsDirectlyToIdle
             ),
             (
-                "Empty dictation treats bad input without transcript as no speech",
-                testEmptyDictationTreatsBadInputWithoutTranscriptAsNoSpeech
-            ),
-            (
-                "Empty dictation keeps real service failures visible",
-                testEmptyDictationKeepsRealServiceFailuresVisible
-            ),
-            (
                 "Empty dictation discards only truly tiny local capture",
                 testEmptyDictationDiscardsOnlyTrulyTinyLocalCapture
             ),
@@ -2022,6 +2069,10 @@ private enum SottoCoreTestHarness {
                 testWAVEncoderBuildsCanonicalPCM16Header
             ),
             (
+                "Diagnostics store persists audio and pipeline stages",
+                testDiagnosticsStorePersistsAudioAndPipelineStages
+            ),
+            (
                 "Fun run task message uses duplex PCM16 configuration",
                 testFunRunTaskMessageUsesDuplexPCM16Configuration
             ),
@@ -2112,6 +2163,10 @@ private enum SottoCoreTestHarness {
             (
                 "Bailian cleanup request encodes context-aware cleanup policy",
                 testBailianCleanupRequestEncodesContextAwareCleanupPolicy
+            ),
+            (
+                "Bailian cleanup response detects truncation",
+                testBailianCleanupResponseDetectsTruncation
             ),
             (
                 "Bailian cleanup system prompt matches speaker language",

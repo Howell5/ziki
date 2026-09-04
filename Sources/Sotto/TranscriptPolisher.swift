@@ -6,6 +6,7 @@ enum TranscriptPolisherError: LocalizedError {
     case badResponse
     case provider(statusCode: Int, message: String)
     case emptyResponse
+    case truncatedResponse(partialText: String)
 
     var errorDescription: String? {
         switch self {
@@ -17,23 +18,13 @@ enum TranscriptPolisherError: LocalizedError {
             "整理服务错误（\(statusCode)）：\(message)"
         case .emptyResponse:
             "整理服务没有返回文字"
+        case .truncatedResponse:
+            "整理服务的输出达到长度上限"
         }
     }
 }
 
 actor TranscriptPolisher {
-    private struct ResponseBody: Decodable, Sendable {
-        struct Choice: Decodable, Sendable {
-            struct Message: Decodable, Sendable {
-                let content: String
-            }
-
-            let message: Message
-        }
-
-        let choices: [Choice]
-    }
-
     private struct ErrorBody: Decodable, Sendable {
         struct Detail: Decodable, Sendable {
             let message: String?
@@ -80,14 +71,20 @@ actor TranscriptPolisher {
             )
         }
 
-        let result = try JSONDecoder().decode(ResponseBody.self, from: data)
-        guard let text = result.choices.first?.message.content
-            .trimmingCharacters(in: .whitespacesAndNewlines),
-            !text.isEmpty
-        else {
+        let result: BailianCleanupResponse
+        do {
+            result = try BailianCleanupWire.decodeResponse(data)
+        } catch BailianCleanupWireError.emptyResponse {
             throw TranscriptPolisherError.emptyResponse
+        } catch {
+            throw TranscriptPolisherError.badResponse
         }
-        return text
+        if result.wasTruncated {
+            throw TranscriptPolisherError.truncatedResponse(
+                partialText: result.text
+            )
+        }
+        return result.text
     }
 
 }

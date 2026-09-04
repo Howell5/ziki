@@ -373,19 +373,39 @@ private struct ProviderSettingsView: View {
 }
 
 private struct PrivacySettingsView: View {
+    @EnvironmentObject private var model: AppModel
     @EnvironmentObject private var settings: SettingsStore
 
     var body: some View {
         Form {
             Section("本机") {
                 LabeledContent("转写历史", value: "本机保存 30 天")
-                LabeledContent("原始音频", value: "请求完成后释放")
+                LabeledContent(
+                    "原始音频",
+                    value: settings.diagnosticsEnabled
+                        ? "诊断记录保存 7 天"
+                        : "请求完成后释放"
+                )
                 LabeledContent("API Key", value: "macOS Keychain")
+            }
+            Section("诊断") {
+                Toggle("保存本地诊断记录", isOn: $settings.diagnosticsEnabled)
+                Text("开启后，每次听写会在本机保存 WAV 音频、ASR 原文、千问候选结果、最终文字和阶段错误，7 天后自动删除。记录可能包含敏感内容。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                HStack {
+                    Button("打开诊断文件夹") {
+                        model.openDiagnosticsFolder()
+                    }
+                    Button("清除诊断记录", role: .destructive) {
+                        model.clearDiagnostics()
+                    }
+                }
             }
             Section("当前数据路径") {
                 Text(providerDisclosure)
                     .fixedSize(horizontal: false, vertical: true)
-                Text("Sotto 只在本机保存整理后的最终文本，不保存录音、实时识别片段或整理前原文，也不会把完整口述写入诊断日志。记录在 30 天后自动删除。第三方服务商的数据处理仍受各自条款约束。")
+                Text(privacyDisclosure)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -398,6 +418,13 @@ private struct PrivacySettingsView: View {
         settings.cleanupEnabled
             ? "音频会实时发送到阿里云 Fun-ASR Realtime；转写文字随后发送到同一百炼 Workspace 的 Qwen3.5 Flash 做保守整理。"
             : "音频会实时发送到阿里云 Fun-ASR Realtime；文字整理当前已关闭。"
+    }
+
+    private var privacyDisclosure: String {
+        if settings.diagnosticsEnabled {
+            return "Sotto 会在本机诊断文件夹保存最近 7 天的原始音频、识别与整理文本；API Key 不会写入。整理后的历史文字另行保留 30 天。第三方服务商的数据处理仍受各自条款约束。"
+        }
+        return "Sotto 只在本机保存整理后的最终文本，不保存录音、实时识别片段或整理前原文，也不会把完整口述写入诊断日志。记录在 30 天后自动删除。第三方服务商的数据处理仍受各自条款约束。"
     }
 }
 

@@ -3,6 +3,7 @@ import Foundation
 public enum BailianCleanupPolicy {
     public static let enabledByDefault = true
     public static let model = "qwen3.5-flash"
+    public static let maxOutputTokens = 16_384
 }
 
 public struct BailianCleanupRoute: Equatable, Sendable {
@@ -38,6 +39,16 @@ public struct BailianCleanupRoute: Equatable, Sendable {
     }
 }
 
+public struct BailianCleanupResponse: Equatable, Sendable {
+    public let text: String
+    public let wasTruncated: Bool
+}
+
+public enum BailianCleanupWireError: Error, Equatable, Sendable {
+    case malformedResponse
+    case emptyResponse
+}
+
 public enum BailianCleanupWire {
     private struct RequestBody: Encodable {
         struct Message: Encodable {
@@ -58,6 +69,24 @@ public enum BailianCleanupWire {
             case enableThinking = "enable_thinking"
             case maxTokens = "max_tokens"
         }
+    }
+
+    private struct ResponseBody: Decodable {
+        struct Choice: Decodable {
+            struct Message: Decodable {
+                let content: String
+            }
+
+            let message: Message
+            let finishReason: String?
+
+            enum CodingKeys: String, CodingKey {
+                case message
+                case finishReason = "finish_reason"
+            }
+        }
+
+        let choices: [Choice]
     }
 
     public static func makeRequest(rawTranscript: String) throws -> Data {
@@ -122,9 +151,28 @@ public enum BailianCleanupWire {
             ],
             temperature: 0,
             enableThinking: false,
-            maxTokens: 1_024
+            maxTokens: BailianCleanupPolicy.maxOutputTokens
         )
         return try JSONEncoder().encode(payload)
+    }
+
+    public static func decodeResponse(_ data: Data) throws -> BailianCleanupResponse {
+        guard let choice = try? JSONDecoder().decode(
+            ResponseBody.self,
+            from: data
+        ).choices.first else {
+            throw BailianCleanupWireError.malformedResponse
+        }
+        let text = choice.message.content.trimmingCharacters(
+            in: .whitespacesAndNewlines
+        )
+        guard !text.isEmpty else {
+            throw BailianCleanupWireError.emptyResponse
+        }
+        return BailianCleanupResponse(
+            text: text,
+            wasTruncated: choice.finishReason == "length"
+        )
     }
 
     private static func jsonStringLiteral(_ value: String) -> String {
