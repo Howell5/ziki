@@ -429,6 +429,9 @@ private struct PrivacySettingsView: View {
 }
 
 private struct AboutSettingsView: View {
+    @EnvironmentObject private var model: AppModel
+    @EnvironmentObject private var updater: AppUpdater
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Image(nsImage: NSWorkspace.shared.icon(forFile: Bundle.main.bundlePath))
@@ -444,9 +447,57 @@ private struct AboutSettingsView: View {
                 .foregroundStyle(.secondary)
             Text("首版只做听写、保守整理和可靠写回。")
                 .foregroundStyle(.secondary)
+            Divider()
+                .padding(.vertical, 4)
+            updateControls
         }
         .padding(32)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    @ViewBuilder
+    private var updateControls: some View {
+        switch updater.state {
+        case .idle:
+            Button("检查更新") {
+                updater.check()
+            }
+        case .checking:
+            ProgressView("正在检查更新…")
+                .controlSize(.small)
+        case let .current(version):
+            Text("已是最新版本 \(version)")
+                .foregroundStyle(.secondary)
+            Button("再次检查") {
+                updater.check()
+            }
+        case let .available(package):
+            Text("发现新版本 \(package.version)")
+                .font(.headline)
+            Button("更新到 \(package.version) 并退出") {
+                updater.install()
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(model.phase != .idle)
+            if model.phase != .idle {
+                Text("请先结束当前听写，再安装更新。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        case let .downloading(version):
+            ProgressView("正在下载 \(version)…")
+                .controlSize(.small)
+        case let .preparing(version):
+            ProgressView("正在安装 \(version)，Sotto 即将退出…")
+                .controlSize(.small)
+        case let .failed(message):
+            Text(message)
+                .foregroundStyle(.red)
+                .fixedSize(horizontal: false, vertical: true)
+            Button("重新检查") {
+                updater.check()
+            }
+        }
     }
 
     private var versionDisplay: String {

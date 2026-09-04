@@ -1436,6 +1436,83 @@ private func testAppVersionDisplayIncludesBuildAndCommit() throws {
     )
 }
 
+private func testAppUpdatePolicySelectsNewerSignedPackage() throws {
+    let digest = String(repeating: "a", count: 64)
+    let release = Data(
+        """
+        {
+          "tag_name": "v0.2.14",
+          "assets": [
+            {
+              "name": "Sotto-0.2.14-macOS-arm64.zip",
+              "size": 1234,
+              "digest": "sha256:\(digest)",
+              "browser_download_url": "https://github.com/Howell5/sotto/releases/download/v0.2.14/Sotto-0.2.14-macOS-arm64.zip"
+            }
+          ]
+        }
+        """.utf8
+    )
+
+    let availability = try AppUpdatePolicy.resolve(
+        releaseData: release,
+        currentVersion: "0.2.13",
+        architecture: "arm64"
+    )
+    try expect(
+        availability,
+        equals: .available(
+            AppUpdatePackage(
+                version: "0.2.14",
+                downloadURL: URL(
+                    string: "https://github.com/Howell5/sotto/releases/download/v0.2.14/Sotto-0.2.14-macOS-arm64.zip"
+                )!,
+                sha256: digest,
+                size: 1234
+            )
+        ),
+        "newer update package"
+    )
+    try expect(
+        try AppUpdatePolicy.resolve(
+            releaseData: release,
+            currentVersion: "0.2.14",
+            architecture: "arm64"
+        ),
+        equals: .current(latestVersion: "0.2.14"),
+        "current release"
+    )
+}
+
+private func testAppUpdatePolicyRejectsUntrustedPackageURL() throws {
+    let release = Data(
+        """
+        {
+          "tag_name": "v0.2.14",
+          "assets": [
+            {
+              "name": "Sotto-0.2.14-macOS-arm64.zip",
+              "size": 1234,
+              "digest": "sha256:\(String(repeating: "b", count: 64))",
+              "browser_download_url": "https://example.com/Sotto-0.2.14-macOS-arm64.zip"
+            }
+          ]
+        }
+        """.utf8
+    )
+
+    do {
+        _ = try AppUpdatePolicy.resolve(
+            releaseData: release,
+            currentVersion: "0.2.13",
+            architecture: "arm64"
+        )
+        throw TestFailure(description: "untrusted package URL was accepted")
+    } catch let error as AppUpdatePolicyError {
+        try expect(error, equals: .missingPackage, "untrusted package URL")
+    }
+}
+
 private func testInsertionHasNoOverlayPresentation() throws {
     try expect(
         DictationOverlayPresentation.resolve(.inserting),
@@ -2123,6 +2200,14 @@ private enum SottoCoreTestHarness {
             (
                 "App version display includes build and commit",
                 testAppVersionDisplayIncludesBuildAndCommit
+            ),
+            (
+                "App update policy selects newer signed package",
+                testAppUpdatePolicySelectsNewerSignedPackage
+            ),
+            (
+                "App update policy rejects untrusted package URL",
+                testAppUpdatePolicyRejectsUntrustedPackageURL
             ),
             (
                 "Insertion has no overlay presentation",

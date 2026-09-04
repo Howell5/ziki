@@ -34,15 +34,20 @@ swift build \
     --package-path "$PROJECT_ROOT" \
     --configuration release \
     --product Sotto
+swift build \
+    --package-path "$PROJECT_ROOT" \
+    --configuration release \
+    --product SottoUpdater
 
 BIN_DIR="$(swift build \
     --package-path "$PROJECT_ROOT" \
     --configuration release \
     --show-bin-path)"
 BINARY="$BIN_DIR/Sotto"
+UPDATER_BINARY="$BIN_DIR/SottoUpdater"
 
-if [[ ! -x "$BINARY" ]]; then
-    printf 'error: release executable not found at %s\n' "$BINARY" >&2
+if [[ ! -x "$BINARY" || ! -x "$UPDATER_BINARY" ]]; then
+    printf 'error: release executables were not found under %s\n' "$BIN_DIR" >&2
     exit 1
 fi
 
@@ -52,6 +57,9 @@ trap 'rm -rf -- "$STAGING_ROOT"' EXIT
 
 mkdir -p "$STAGED_APP/Contents/MacOS" "$STAGED_APP/Contents/Resources"
 install -m 0755 "$BINARY" "$STAGED_APP/Contents/MacOS/Sotto"
+install -m 0755 \
+    "$UPDATER_BINARY" \
+    "$STAGED_APP/Contents/MacOS/SottoUpdater"
 install -m 0644 "$INFO_PLIST" "$STAGED_APP/Contents/Info.plist"
 install -m 0644 "$ASSETS_DIR/AppIcon.icns" "$STAGED_APP/Contents/Resources/AppIcon.icns"
 install -m 0644 \
@@ -88,6 +96,12 @@ case "$TIMESTAMP_MODE" in
         exit 1
         ;;
 esac
+codesign \
+    --force \
+    --options runtime \
+    "${TIMESTAMP_ARGUMENT[@]}" \
+    --sign "$SIGN_IDENTITY" \
+    "$STAGED_APP/Contents/MacOS/SottoUpdater"
 codesign \
     --force \
     --options runtime \

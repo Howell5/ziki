@@ -25,6 +25,8 @@ Sotto 是一个专注于 macOS 的原生语音输入 App：单击 `fn` 开始说
 4. 如果仍被阻止，先触发一次打开，再进入“系统设置 → 隐私与安全性”，只对 Sotto 点击 **仍要打开**，验证本机密码后确认打开。
 5. 按下文开启麦克风和辅助功能权限，并配置自己的百炼 Workspace ID 与 API Key。
 
+安装包含应用内更新功能的版本后，后续升级可在 **设置 → 关于** 中点击 **检查更新**，再点击 **更新到新版本并退出**。Sotto 会下载 GitHub Latest Release 中与当前架构匹配的 ZIP，校验 SHA-256、Bundle ID、版本号和代码签名身份，验证通过后退出并替换当前应用；更新完成后需要手动重新打开 Sotto。
+
 不要全局关闭 Gatekeeper，也不要运行来源不明的“解除签名限制”命令。公司或学校管理的 Mac 可能禁止“仍要打开”，这种设备需要管理员允许。
 
 API Key 保存在 macOS Keychain。首次保存或首次从旧 ad-hoc 签名迁移到固定本地签名时，系统可能询问 Sotto 是否可访问对应项目；确认来源后选择 **始终允许**。同一台维护者 Mac 使用相同证书、Bundle ID 和安装路径升级时，后续版本不应继续反复询问。其他 Mac 不信任这张本地证书，公开分发仍需 Developer ID。
@@ -66,9 +68,10 @@ open outputs/Sotto.app
 
 1. 执行 `swift build -c release --product Sotto`；
 2. 生成 `outputs/Sotto.app`；
-3. 复制 `Info.plist`；
-4. 使用 `Packaging/Sotto.entitlements` 做 hardened runtime 的 ad-hoc 签名；
-5. 验证 app bundle 和签名。
+3. 把独立更新助手 `SottoUpdater` 放入 App bundle；
+4. 复制 `Info.plist`；
+5. 使用 `Packaging/Sotto.entitlements` 做 hardened runtime 的 ad-hoc 签名；
+6. 验证 app bundle 和签名。
 
 默认签名身份是 `-`。将来有 Developer ID 时，可以指定证书：
 
@@ -181,6 +184,8 @@ Fun-ASR 在录音时持续发送 PCM 音频并接收实时结果；Qwen3.5 Flash
 打开 `outputs/Sotto-0.2.13-macOS-arm64.dmg`，将 Sotto 拖入 **Applications**。之后可以从 Dock、Spotlight、Launchpad、Finder 或菜单栏打开；再次点击 Dock 图标会恢复设置窗口。
 
 当前项目选择零成本分发，`package-distribution.sh` 默认使用 `Sotto Local Development` 固定本地签名，**尚未 notarize**。这能让维护者 Mac 在版本更新后保持同一应用身份，但其他 Mac 不会自动信任该证书，Gatekeeper 仍会提示未验证的开发者。
+
+应用内更新依赖 Release 中严格命名的 `Sotto-<版本>-macOS-<架构>.zip`，并要求新旧应用具有相同的 designated requirement。发布时不可更换签名证书；GitHub Release 也必须保留资产的 SHA-256 digest，否则客户端会拒绝安装。
 
 本机直接构建通常可以正常打开。如果 app 经浏览器或聊天工具下载，Gatekeeper 可能阻止首次启动。请先尝试右键 app 选择 **打开**；如仍被阻止，到“系统设置 → 隐私与安全性”对这一个 app 选择 **仍要打开**。不要全局关闭 Gatekeeper。
 

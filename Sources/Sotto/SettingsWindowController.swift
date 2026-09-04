@@ -15,6 +15,7 @@ final class SettingsWindowController:
             .environmentObject(model.permissions)
             .environmentObject(model.historyStore)
             .environmentObject(model.settingsNavigation)
+            .environmentObject(model.updater)
         let hostingController = NSHostingController(rootView: rootView)
         let window = NSWindow(contentViewController: hostingController)
         window.title = "Sotto Settings"

@@ -11,6 +11,7 @@ let package = Package(
         .library(name: "SottoCore", targets: ["SottoCore"]),
         .library(name: "SottoAppCore", targets: ["SottoAppCore"]),
         .executable(name: "Sotto", targets: ["Sotto"]),
+        .executable(name: "SottoUpdater", targets: ["SottoUpdater"]),
         .executable(name: "SottoCoreTestHarness", targets: ["SottoCoreTestHarness"]),
         .executable(name: "SottoAppTestHarness", targets: ["SottoAppTestHarness"])
     ],
@@ -24,6 +25,7 @@ let package = Package(
             name: "Sotto",
             dependencies: ["SottoCore", "SottoAppCore"]
         ),
+        .executableTarget(name: "SottoUpdater"),
         .executableTarget(
             name: "SottoCoreTestHarness",
             dependencies: ["SottoCore"],

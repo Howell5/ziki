@@ -71,6 +71,7 @@ final class AppModel: ObservableObject {
     let keychain: KeychainStore
     let historyStore: DictationHistoryStore
     let settingsNavigation: SettingsNavigationState
+    let updater = AppUpdater()
 
     private var stateMachine = DictationStateMachine()
     private weak var overlayController: OverlayPanelController?
