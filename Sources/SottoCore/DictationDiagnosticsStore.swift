@@ -22,6 +22,9 @@ public struct DictationDiagnosticDocument: Codable, Equatable, Sendable {
     public var asrFinalText: String? = nil
     public var qwenCandidateText: String? = nil
     public var cleanupDecision: String? = nil
+    public var cleanupModel: String? = nil
+    public var cleanupPromptVersion: String? = nil
+    public var cleanupContext: [DictationContext.Turn]? = nil
     public var finalText: String? = nil
     public var outcome: String? = nil
     public var errorStage: String? = nil
@@ -150,6 +153,14 @@ public final class DictationDiagnosticsStore {
         ) { document in
             document.asrLatestText = text
             document.asrFinalText = text
+        }
+    }
+
+    public func recordCleanupRequest(sessionID: UUID, context: [DictationContext.Turn]) {
+        update(sessionID, stage: "cleanup_requested") { document in
+            document.cleanupModel = BailianCleanupPolicy.model
+            document.cleanupPromptVersion = BailianCleanupPolicy.promptVersion
+            document.cleanupContext = context
         }
     }
 

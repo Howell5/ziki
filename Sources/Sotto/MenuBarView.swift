@@ -37,6 +37,11 @@ struct MenuBarView: View {
             model.openHistory()
         }
 
+        Button("开始新对话（清空上下文）") {
+            model.clearDictationContext()
+        }
+        .disabled(model.phase != .idle)
+
         Divider()
 
         Button("Open Settings…") {

@@ -47,7 +47,10 @@ actor TranscriptPolisher {
         self.session = session
     }
 
-    func polish(_ rawTranscript: String) async throws -> String {
+    func polish(
+        _ rawTranscript: String,
+        context: [DictationContext.Turn] = []
+    ) async throws -> String {
         var request = URLRequest(url: endpoint)
         request.httpMethod = "POST"
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
@@ -55,7 +58,8 @@ actor TranscriptPolisher {
         request.timeoutInterval = 30
 
         request.httpBody = try BailianCleanupWire.makeRequest(
-            rawTranscript: rawTranscript
+            rawTranscript: rawTranscript,
+            context: context
         )
 
         let (data, response) = try await session.data(for: request)

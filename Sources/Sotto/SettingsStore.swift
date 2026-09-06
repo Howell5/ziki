@@ -44,6 +44,7 @@ final class SettingsStore: ObservableObject {
         static let funWorkspaceID = "funWorkspaceID"
         static let language = "asrLanguage"
         static let cleanupEnabled = "cleanupEnabled"
+        static let contextEnabled = "contextEnabled"
         static let diagnosticsEnabled = "diagnosticsEnabled"
         static let launchAtLogin = "launchAtLogin"
         static let onboardingComplete = "onboardingComplete"
@@ -75,6 +76,10 @@ final class SettingsStore: ObservableObject {
         didSet { defaults.set(diagnosticsEnabled, forKey: Key.diagnosticsEnabled) }
     }
 
+    @Published var contextEnabled: Bool {
+        didSet { defaults.set(contextEnabled, forKey: Key.contextEnabled) }
+    }
+
     @Published var launchAtLogin: Bool {
         didSet { defaults.set(launchAtLogin, forKey: Key.launchAtLogin) }
     }
@@ -95,6 +100,8 @@ final class SettingsStore: ObservableObject {
             ? BailianCleanupPolicy.enabledByDefault
             : defaults.bool(forKey: Key.cleanupEnabled)
         diagnosticsEnabled = defaults.bool(forKey: Key.diagnosticsEnabled)
+        contextEnabled = defaults.object(forKey: Key.contextEnabled) == nil
+            ? true : defaults.bool(forKey: Key.contextEnabled)
         launchAtLogin = defaults.bool(forKey: Key.launchAtLogin)
         onboardingComplete = defaults.bool(forKey: Key.onboardingComplete)
         defaults.set(SpeechProviderKind.funASR.rawValue, forKey: Key.provider)

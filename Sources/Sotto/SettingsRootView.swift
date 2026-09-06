@@ -170,6 +170,7 @@ private struct PermissionRow: View {
 }
 
 private struct SpeechSettingsView: View {
+    @EnvironmentObject private var model: AppModel
     @EnvironmentObject private var settings: SettingsStore
 
     var body: some View {
@@ -196,13 +197,28 @@ private struct SpeechSettingsView: View {
 
             Section("写作") {
                 Toggle("自动整理口述内容", isOn: $settings.cleanupEnabled)
-                Text("默认开启。删除口头语和重复、执行明确改口、补标点；没有明确改口依据的数字、邮箱和链接变化会自动回退原文。")
+                Text("由模型结合语境纠正识别错误、去除口癖并整理结构，不再按字符差异或字数比例否决结果。请求失败、空响应或输出未完成时保留原始转写。金额、日期等重要信息仍请核对。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                Toggle("参考最近几轮听写", isOn: $settings.contextEnabled)
+                    .disabled(!settings.cleanupEnabled)
+                Text("启用后，最多 3 轮、合计 8000 字的近期识别与整理文字会随本次请求发送给千问。上下文默认仅在内存中暂存，开启诊断会额外记录请求上下文；切换目标应用、间隔 10 分钟或重启后不再沿用。同一应用内切换聊天或话题时，可手动开始新对话。不读取聊天窗口，也不把模型结果当作已确认术语。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Button("开始新对话（清空上下文）") {
+                    model.clearDictationContext()
+                }
+                .disabled(model.phase != .idle)
             }
         }
         .formStyle(.grouped)
         .navigationTitle("语音")
+        .onChange(of: settings.contextEnabled) { _ in
+            model.clearDictationContext()
+        }
+        .onChange(of: settings.cleanupEnabled) { _ in
+            model.clearDictationContext()
+        }
     }
 }
 
@@ -390,7 +406,7 @@ private struct PrivacySettingsView: View {
             }
             Section("诊断") {
                 Toggle("保存本地诊断记录", isOn: $settings.diagnosticsEnabled)
-                Text("开启后，每次听写会在本机保存 WAV 音频、ASR 原文、千问候选结果、最终文字和阶段错误，7 天后自动删除。记录可能包含敏感内容。")
+                Text("开启后，每次听写会在本机保存 WAV 音频、ASR 原文、整理时使用的上下文与模型版本、千问结果、最终文字和阶段错误，7 天后自动删除。记录可能包含敏感内容。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 HStack {
@@ -416,7 +432,7 @@ private struct PrivacySettingsView: View {
 
     private var providerDisclosure: String {
         settings.cleanupEnabled
-            ? "音频会实时发送到阿里云 Fun-ASR Realtime；转写文字随后发送到同一百炼 Workspace 的 Qwen3.5 Flash 做保守整理。"
+            ? "音频会实时发送到阿里云 Fun-ASR Realtime；转写文字随后发送到同一百炼 Workspace 的 Qwen3.5 Flash 整理。" + (settings.contextEnabled ? "已启用近期上下文：最多 3 轮、合计 8000 字的先前识别与整理文字也会随请求发送，不是只在本地使用。" : "近期上下文已关闭。")
             : "音频会实时发送到阿里云 Fun-ASR Realtime；文字整理当前已关闭。"
     }
 
@@ -424,7 +440,7 @@ private struct PrivacySettingsView: View {
         if settings.diagnosticsEnabled {
             return "Sotto 会在本机诊断文件夹保存最近 7 天的原始音频、识别与整理文本；API Key 不会写入。整理后的历史文字另行保留 30 天。第三方服务商的数据处理仍受各自条款约束。"
         }
-        return "Sotto 只在本机保存整理后的最终文本，不保存录音、实时识别片段或整理前原文，也不会把完整口述写入诊断日志。记录在 30 天后自动删除。第三方服务商的数据处理仍受各自条款约束。"
+        return "Sotto 只将整理后的最终文本写入本机历史，30 天后自动删除；不将录音、实时识别片段或整理前原文写入磁盘。启用近期上下文时，少量识别与整理文字会暂存在内存，不会从历史记录恢复。第三方服务商的数据处理仍受各自条款约束。"
     }
 }
 

@@ -14,15 +14,12 @@ enum SpeechConnectionTestState: Equatable {
 
 private enum BailianConnectionTestError: LocalizedError {
     case invalidCleanupRoute
-    case cleanupRejected(TranscriptRejectionReason)
     case unexpectedCleanup(String)
 
     var errorDescription: String? {
         switch self {
         case .invalidCleanupRoute:
             "无法从当前 Workspace 和区域生成文字整理地址"
-        case let .cleanupRejected(reason):
-            "Qwen 返回了文字，但安全校验拒绝了结果：\(reason)"
         case let .unexpectedCleanup(text):
             "Qwen 改口验证结果不符合预期：\(text)"
         }
@@ -79,7 +76,7 @@ final class AppModel: ObservableObject {
     private let microphone = MicrophoneCapture()
     private let audioTransport = AudioTransportRunner()
     private let textInsertion = TextInsertionService()
-    private let transcriptGuard = TranscriptGuard()
+    private var dictationContext = DictationContext()
     private let diagnosticsStore = DictationDiagnosticsStore()
     private let insertionReadiness = AppModelInsertionReadiness()
     private lazy var outputCoordinator = DictationOutputCoordinator(
@@ -214,6 +211,10 @@ final class AppModel: ObservableObject {
 
     func clearDiagnostics() {
         diagnosticsStore.removeAll()
+    }
+
+    func clearDictationContext() {
+        dictationContext.clear()
     }
 
     func restoreSettingsAfterPermissionPrompt() {
@@ -441,13 +442,8 @@ final class AppModel: ObservableObject {
         let rawText = "今晚6点吃饭，哦不，改成8点。"
         let polisher = TranscriptPolisher(route: route, apiKey: apiKey)
         let candidate = try await polisher.polish(rawText)
-        switch transcriptGuard.evaluate(raw: rawText, polished: candidate) {
-        case let .usePolished(text):
-            guard text.contains("8"), !text.contains("6") else {
-                throw BailianConnectionTestError.unexpectedCleanup(text)
-            }
-        case let .useOriginal(_, reason):
-            throw BailianConnectionTestError.cleanupRejected(reason)
+        guard candidate.contains("8"), !candidate.contains("6") else {
+            throw BailianConnectionTestError.unexpectedCleanup(candidate)
         }
     }
 
@@ -567,6 +563,13 @@ final class AppModel: ObservableObject {
     }
 
     private func prepareCaptureAndConnect() {
+        if !settings.cleanupEnabled || !settings.contextEnabled {
+            dictationContext.clear()
+        }
+        let applicationID = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+        dictationContext.prepare(
+            applicationID: applicationID == Bundle.main.bundleIdentifier ? nil : applicationID
+        )
         audioInputNotice = BluetoothInputNotice.resolve(
             for: DefaultAudioInput.transportKind()
         )
@@ -842,29 +845,25 @@ final class AppModel: ObservableObject {
            let apiKey = await credentialValue(for: .funASR) {
             do {
                 let polisher = TranscriptPolisher(route: route, apiKey: apiKey)
-                let candidate = try await polisher.polish(rawText)
-                switch transcriptGuard.evaluate(raw: rawText, polished: candidate) {
-                case let .usePolished(text):
-                    finalText = text
-                    if let diagnosticSessionID {
-                        diagnosticsStore.recordCleanup(
-                            sessionID: diagnosticSessionID,
-                            candidate: candidate,
-                            decision: "use_polished",
-                            finalText: finalText
-                        )
-                    }
-                case let .useOriginal(text, reason):
-                    finalText = text
-                    statusDetail = "Cleanup rejected (\(String(describing: reason))); using transcript"
-                    if let diagnosticSessionID {
-                        diagnosticsStore.recordCleanup(
-                            sessionID: diagnosticSessionID,
-                            candidate: candidate,
-                            decision: "use_original_\(String(describing: reason))",
-                            finalText: finalText
-                        )
-                    }
+                let context = settings.contextEnabled ? dictationContext.turns : []
+                if let diagnosticSessionID {
+                    diagnosticsStore.recordCleanupRequest(
+                        sessionID: diagnosticSessionID,
+                        context: context
+                    )
+                }
+                let candidate = try await polisher.polish(rawText, context: context)
+                finalText = candidate
+                if settings.cleanupEnabled && settings.contextEnabled {
+                    dictationContext.append(raw: rawText, polished: candidate)
+                }
+                if let diagnosticSessionID {
+                    diagnosticsStore.recordCleanup(
+                        sessionID: diagnosticSessionID,
+                        candidate: candidate,
+                        decision: "use_polished",
+                        finalText: finalText
+                    )
                 }
             } catch {
                 let partialText: String?

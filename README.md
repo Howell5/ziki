@@ -11,7 +11,7 @@ Sotto 是一个专注于 macOS 的原生语音输入 App：单击 `fn` 开始说
 - 阿里百炼 Fun-ASR Realtime 实时识别
 - 同一 Workspace 与 API Key 调用 Qwen3.5 Flash 做保守整理
 - 通过系统 `⌘V` 写入当前键盘焦点；结果同时保留在剪贴板
-- API Key 存在 macOS Keychain；不保存录音，最终听写文本只在本机保留 30 天
+- API Key 存在 macOS Keychain；默认不保存录音，最终听写文本只在本机保留 30 天
 
 翻译、聊天、云端历史和模板系统不在当前范围内。
 
@@ -56,6 +56,23 @@ swift build
 swift run SottoCoreTestHarness
 swift run SottoAppTestHarness
 ```
+
+按需运行真实整理模型评测（会使用自己的百炼配额，不启用麦克风、不读取听写历史）：
+
+```bash
+swift build
+SOTTO_BUILD_DIR="$(swift build --show-bin-path)"
+swiftc -parse-as-library -I "$SOTTO_BUILD_DIR/Modules" \
+  "$SOTTO_BUILD_DIR"/SottoCore.build/*.o \
+  Sources/Sotto/TranscriptPolisher.swift scripts/evaluate-cleanup.swift \
+  -o .build/evaluate-cleanup
+SOTTO_EVAL_API_KEY="$(security find-generic-password -s com.sotto.voice.credentials -a fun-asr-api-key -w)" \
+SOTTO_EVAL_WORKSPACE="$(defaults read com.willhong.sotto funWorkspaceID)" \
+SOTTO_EVAL_REGION="$(defaults read com.willhong.sotto funRegion)" \
+  .build/evaluate-cleanup
+```
+
+评测顺序提交 6 个固定样例，复用生产请求构造和整理调用；输出供人工核对。断言只用于评测，不参与运行时文本审核，也不代表模型永远不会误改。请勿在开启 shell 命令追踪（`set -x`）时运行含凭据的命令。
 
 打包 release 应用：
 
@@ -147,7 +164,11 @@ Fun-ASR 在录音时持续发送 PCM 音频并接收实时结果；Qwen3.5 Flash
 
 不同区域的 API Key 和 endpoint 不能混用。如果返回未授权错误，先检查区域，再检查 Key。
 
-整理默认开启，可在 **语音 → 自动整理口述内容** 中关闭。整理输出始终跟随说话语言：中文口述输出中文，英文口述输出英文，不会翻译；中英混排、代码、术语和专有名词会原样保留。API Key 保存在 macOS Keychain；Workspace ID 和区域等非机密设置保存在 UserDefaults。
+整理默认开启，可在 **语音 → 自动整理口述内容** 中关闭。整理输出始终跟随说话语言：中文口述输出中文，英文口述输出英文，不会翻译。模型结合语境恢复听错的术语、去除口癖、保留问题与不确定语气，并只在适合时使用列表。正常完成的模型结果直接交付，不再通过正则、数字差异或字数比例审核；请求失败、空响应或未完成输出时保留原始转写。模型仍可能出错，金额、日期、邮箱等重要信息请核对。
+
+**语音 → 参考最近几轮听写** 默认开启：在同一目标应用连续听写时，最多保留 3 轮、合计 8000 字的完整识别与整理文字，随下一次整理请求发送给千问，不额外调用摘要或审核模型。超过预算时舍弃整轮，不截取片段；当前听写仍完整提交。近期内容只作为可能有误的参考，不是已确认术语，不会从 30 天历史中恢复，也不会读取其他应用的聊天正文或 AI 回复。
+
+切换听写目标应用、距上一轮整理完成超过 10 分钟、手动清空或重启后，不再沿用旧上下文。同一应用不等于同一对话：切换聊天或话题时，可从菜单栏或语音设置点击 **开始新对话（清空上下文）**。也可单独关闭近期上下文。上下文默认只暂存在内存；开启诊断时，实际使用的上下文也会随该次诊断记录写入磁盘。API Key 保存在 macOS Keychain；Workspace ID 和区域等非机密设置保存在 UserDefaults。
 
 ## 使用 Fn toggle
 
@@ -164,7 +185,7 @@ Fun-ASR 在录音时持续发送 PCM 音频并接收实时结果；Qwen3.5 Flash
 
 每次有效听写的最终文本会先写入本机历史，再尝试系统粘贴。可从设置侧边栏的 **历史** 或菜单栏 **Open History…** 搜索、复制或删除记录；复制只写入剪贴板，不会替你再次粘贴。历史固定保留 30 天，也可手动清空全部。
 
-排查听写截断或无结果时，可在 **隐私 → 保存本地诊断记录** 中开启诊断模式。每次听写会在 `~/Library/Application Support/Sotto/Diagnostics/` 下生成 WAV 音频和 `session.json`，关联记录 ASR 原文、千问候选、守卫决策、最终文字和错误阶段；记录仅存本机、排除系统备份并在 7 天后自动删除。诊断记录可能包含敏感内容，问题排查结束后应关闭并清除。
+排查听写截断或无结果时，可在 **隐私 → 保存本地诊断记录** 中开启诊断模式。每次听写会在 `~/Library/Application Support/Sotto/Diagnostics/` 下生成 WAV 音频和 `session.json`，关联记录 ASR 原文、整理所用上下文、模型与 prompt 版本、千问结果、交付／回退决策、最终文字和错误阶段；诊断记录仅存本机、排除系统备份并在 7 天后自动删除。诊断记录可能包含敏感内容，问题排查结束后应关闭并清除。
 
 如果单击 `fn` 完全没有反应，优先检查辅助功能权限，并确认 macOS 没有把单独的 `fn` 配置为系统听写、输入法切换或表情面板。
 
@@ -173,10 +194,10 @@ Fun-ASR 在录音时持续发送 PCM 音频并接收实时结果；Qwen3.5 Flash
 ## 数据与隐私
 
 - 音频发送到所选区域的阿里云 Fun-ASR Realtime。
-- 启用整理时，转写文本会发送到同一百炼 Workspace 的 Qwen3.5 Flash。
-- 默认情况下，Sotto 不保存录音、实时识别片段或整理前原文；整理后的最终文本在本机 Application Support 中保存 30 天。
+- 启用整理时，转写文本会发送到同一百炼 Workspace 的 Qwen3.5 Flash；启用近期上下文时，最近几轮的识别与整理文字也会随请求发送，不是只在本地使用。
+- 默认情况下，Sotto 不将录音、实时识别片段或整理前原文写入磁盘；近期上下文仅暂存在内存，整理后的最终文本在本机 Application Support 中保存 30 天。
 - 历史不包含目标 App、窗口、PID、粘贴状态或复制状态，也不会同步到云端。
-- 用户主动开启本地诊断后，最近 7 天的 WAV 音频、识别与整理文本会保存在本机；API Key 不会写入。
+- 用户主动开启本地诊断后，最近 7 天的 WAV 音频、识别与整理文本、整理上下文与模型版本会保存在本机；API Key 不会写入。
 - 第三方服务的数据保留与训练政策由各自条款决定。
 
 ## 分发状态
