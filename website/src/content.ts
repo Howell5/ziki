@@ -30,7 +30,6 @@ type Copy = {
   heard: string;
   written: string;
   sample: string;
-  play: string;
   replay: string;
   stop: string;
   states: [string, string, string, string];
@@ -84,7 +83,6 @@ export const copy: Record<Language, Copy> = {
     heard: "WHAT YOU SAY",
     written: "WHAT YOU MEAN",
     sample: "Illustrative demo · No microphone access",
-    play: "Play demo",
     replay: "Replay",
     stop: "Stop demo",
     states: [
@@ -205,7 +203,6 @@ export const copy: Record<Language, Copy> = {
     heard: "你自然地说",
     written: "整理后的表达",
     sample: "预设示例演示 · 不访问麦克风",
-    play: "播放演示",
     replay: "再看一次",
     stop: "停止演示",
     states: ["准备好，随时开口", "正在聆听…", "正在整理表达…", "文字已就绪"],

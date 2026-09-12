@@ -59,6 +59,13 @@ for (const [language, file, lang] of [
     assert.match(html, /hrefLang="x-default" href="https:\/\/getziki\.com\/"/i);
     assert.ok(html.includes("https://getziki.com/social-card.jpg"));
     assert.equal((html.match(/<h1\b/g) || []).length, 1);
+    assert.equal((html.match(/class="demo-shell"/g) || []).length, 2);
+    for (const example of copy[language].examples) {
+      assert.ok(html.includes(example.raw));
+      for (const result of example.result) assert.ok(html.includes(result));
+    }
+    assert.equal((html.match(/class="clean-list"/g) || []).length, 1);
+    assert.equal((html.match(/class="clean-prose"/g) || []).length, 1);
     for (const source of html.matchAll(
       /(?:src|href)="(\/(?:assets\/|[^"\/]+\.(?:png|webp))[^"?#]*)"/g,
     )) {

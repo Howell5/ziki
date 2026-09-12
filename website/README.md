@@ -54,9 +54,11 @@ Canonical URLs, reciprocal language alternates, and social sharing metadata use 
 - Update the current downloadable release in `src/content.ts`, including both preview labels. Keep the exact GitHub asset URL and verify it exists before publishing. The website does not query GitHub on every visit.
 - Main site copy is a typed English/Chinese object. Shared localized SEO metadata lives in `src/seo.ts`; the two routes select their language. Keep its origin, `public/sitemap.xml`, and `public/robots.txt` consistent when changing domains.
 - `Brand.tsx` owns the hover, focus, click, Escape, and outside-dismiss story card. A short brand origin is also permanently visible below the product details.
-- `Demo.tsx` owns the opt-in, cancelable sample playback. Changing scenarios clears the pending stage timer. Reduced-motion settings disable animation.
+- `Demo.tsx` renders both examples as independent cards. Each automatically plays once when at least 35% visible, then retains its result. Off-screen or hidden-page timers are canceled; re-entry resumes the current stage without looping finished examples. Stop reveals the result; Replay starts a new pass. Reduced-motion settings show the result immediately. Both examples remain readable in prerendered HTML without JavaScript.
 - The site fonts are bundled and served locally. No runtime third-party font request is made.
 - App code, package identity, signing, and releases are unchanged by this website.
+
+Browser regression checks live in `tests/browser-smoke.mjs`. With Ego Browser, import `verifyDemos` and pass a page from the current task's TaskSpace and the static preview origin. The checks cover scroll autoplay, independent examples, off-screen pause, one-shot completion, replay/stop, stable card height, reduced motion, and both languages at 320, 390, 844, and 1440px. They require a real browser and are separate from the Node tests in Workers Builds.
 
 ## Art direction
 

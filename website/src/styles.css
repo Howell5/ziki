@@ -309,6 +309,7 @@ h1 em {
   width: 56%;
   height: 80%;
   pointer-events: none;
+  mix-blend-mode: multiply;
 }
 .hero-art img {
   filter: brightness(1.06);
@@ -365,6 +366,7 @@ h1 em {
   color: var(--muted);
 }
 .demo-shell {
+  width: 100%;
   max-width: 1020px;
   margin: auto;
   border: 1px solid #d7dacd;
@@ -392,25 +394,21 @@ h1 em {
   border-radius: 50%;
   background: #d9dcd2;
 }
-.scenario-buttons {
+.demo-examples {
+  display: grid;
+  gap: 28px;
+}
+.scenario-title {
   display: flex;
-  gap: 4px;
-  background: #eeefe8;
-  padding: 4px;
-  border-radius: 6px;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+  font-weight: 500;
 }
-.scenario-buttons button {
-  font-size: 11px;
-  background: none;
-  color: #6d7267;
-  padding: 7px 16px;
-  border-radius: 4px;
-  min-height: 32px;
-}
-.scenario-buttons button[aria-pressed="true"] {
-  background: #fffefa;
-  color: var(--ink);
-  box-shadow: 0 1px 4px #28392115;
+.scenario-title > span {
+  color: var(--green);
+  font-size: 10px;
+  letter-spacing: 1px;
 }
 .demo-wordmark {
   font-size: 13px;
@@ -517,6 +515,18 @@ h1 em {
   display: grid;
   gap: 22px;
   margin-top: 40px;
+  position: absolute;
+  inset: 0;
+}
+.output-placeholder[hidden] {
+  display: none;
+}
+.output-content {
+  position: relative;
+  display: flow-root;
+}
+.is-pending .output-result {
+  visibility: hidden;
 }
 .output-placeholder i {
   height: 12px;
@@ -530,7 +540,7 @@ h1 em {
 .output-placeholder i:nth-child(3) {
   width: 71%;
 }
-.phase-2 .output-placeholder {
+.phase-2.is-playing .output-placeholder {
   animation: breathe 0.8s ease infinite alternate;
 }
 .phase-3 .clean-list,
@@ -586,7 +596,7 @@ h1 em {
   gap: 8px;
   align-items: center;
   font-size: 11px;
-  min-height: 34px;
+  min-height: 44px;
 }
 .demo-play:hover {
   background: #dce5ce;
@@ -1040,7 +1050,7 @@ h1 em {
     width: calc(100% - 40px);
   }
   .site-header {
-    height: 80px;
+    height: 76px;
     gap: 12px;
   }
   .site-header nav {
@@ -1048,7 +1058,21 @@ h1 em {
   }
   .header-actions {
     margin-left: auto;
-    gap: 19px;
+    gap: 12px;
+  }
+  .language-switch {
+    display: grid;
+    place-items: center;
+    min-width: 44px;
+    min-height: 44px;
+  }
+  .brand,
+  .header-download,
+  .story-close {
+    min-height: 44px;
+  }
+  .story-close {
+    width: 44px;
   }
   .header-download {
     padding: 9px 12px;
@@ -1066,8 +1090,8 @@ h1 em {
     font-size: 10px;
   }
   .hero {
-    padding: 52px 0 185px;
-    min-height: 710px;
+    padding: 36px 0 38px;
+    min-height: 0;
     display: block;
   }
   .hero-copy {
@@ -1078,16 +1102,16 @@ h1 em {
     letter-spacing: 1.4px;
   }
   h1 {
-    font-size: clamp(59px, 10.5vw, 78px);
-    letter-spacing: -3.5px;
-    margin: 24px 0;
+    font-size: clamp(49px, 12.8vw, 76px);
+    letter-spacing: -2.5px;
+    margin: 20px 0;
   }
   h1 em {
     letter-spacing: -2px;
   }
   .hero-intro {
     max-width: 360px;
-    font-size: 14px;
+    font-size: 15px;
     position: relative;
     z-index: 1;
   }
@@ -1103,7 +1127,8 @@ h1 em {
     min-height: 46px;
   }
   .text-link {
-    font-size: 11px;
+    font-size: 12px;
+    min-height: 44px;
   }
   .requirements {
     font-size: 11px;
@@ -1111,35 +1136,43 @@ h1 em {
     line-height: 1.7;
   }
   .hero-art {
-    width: 76%;
-    height: 275px;
+    position: relative;
+    width: 100%;
+    height: 190px;
+    margin-top: 4px;
     top: auto;
-    bottom: 0;
-    right: -8px;
-    opacity: 0.9;
+    bottom: auto;
+    right: auto;
+    opacity: 1;
     z-index: 0;
   }
   .hero-art img {
-    object-position: 75% 62%;
+    object-position: 75% 76%;
   }
   .art-caption {
     right: 4%;
-    top: 13%;
+    top: 2%;
     font-size: 10px;
   }
   .art-index {
-    font-size: 6px;
-    bottom: 13%;
+    font-size: 7px;
+    bottom: 0;
     right: 4%;
   }
   .hero-margin-note {
-    bottom: 16px;
+    bottom: 0;
     left: 0;
     right: auto;
-    font-size: 9px;
+    font-size: 11px;
+    min-height: 44px;
+    align-items: center;
   }
   .demo-section {
-    padding: 29px 0 55px;
+    padding: 32px 0 48px;
+  }
+  .demo-section .section-intro {
+    text-align: left;
+    margin-bottom: 24px;
   }
   .section-intro h2,
   .section-heading h2 {
@@ -1147,46 +1180,39 @@ h1 em {
     letter-spacing: -1px;
   }
   .section-intro p {
-    font-size: 12px;
-    max-width: 310px;
-    margin: auto;
+    font-size: 14px;
+    max-width: 360px;
+    margin: 0;
   }
   .eyebrow {
     font-size: 8px;
     letter-spacing: 1.3px;
   }
   .demo-toolbar {
-    padding: 12px;
-    min-height: 60px;
+    padding: 14px 20px;
+    min-height: 52px;
     height: auto;
-    justify-content: center;
+    justify-content: space-between;
   }
-  .window-dots,
-  .demo-wordmark {
+  .window-dots {
     display: none;
   }
-  .scenario-buttons {
-    width: 100%;
-    justify-content: center;
-  }
-  .scenario-buttons button {
-    flex: 1;
-    font-size: 10px;
-    padding: 6px 8px;
+  .demo-examples {
+    gap: 24px;
   }
   .demo-columns {
     grid-template-columns: 1fr;
   }
   .demo-input,
   .demo-output {
-    padding: 22px 25px;
+    padding: 22px 20px;
   }
   .demo-input {
     border-right: 0;
     border-bottom: 1px solid #e8e9e1;
   }
   .spoken-text {
-    font-size: 14px;
+    font-size: 15px;
     line-height: 1.8;
     margin-top: 14px;
   }
@@ -1195,7 +1221,8 @@ h1 em {
     margin-top: 16px;
   }
   .demo-output {
-    min-height: 215px;
+    min-height: 190px;
+    background: #fafbf5;
   }
   .clean-list {
     font-size: 15px;
@@ -1207,11 +1234,11 @@ h1 em {
     margin-top: 21px;
   }
   .demo-bottom {
-    padding: 12px;
+    padding: 10px 14px;
     gap: 8px;
   }
   .demo-status {
-    font-size: 10px;
+    font-size: 11px;
     gap: 7px;
   }
   .demo-status kbd {
@@ -1220,13 +1247,13 @@ h1 em {
     height: 26px;
   }
   .demo-play {
-    font-size: 10px;
+    font-size: 11px;
     padding: 8px 10px;
     gap: 5px;
     flex: none;
   }
   .demo-disclaimer {
-    font-size: 10px;
+    font-size: 11px;
     margin-top: 12px;
   }
   .method {
@@ -1281,7 +1308,7 @@ h1 em {
     font-size: 13px;
   }
   .detail-grid p {
-    font-size: 12px;
+    font-size: 14px;
     line-height: 1.8;
   }
   .origin {
@@ -1303,7 +1330,7 @@ h1 em {
     letter-spacing: 1px;
   }
   .origin p {
-    font-size: 12px;
+    font-size: 14px;
   }
   .origin-end {
     display: none;
@@ -1322,7 +1349,7 @@ h1 em {
     padding: 18px 0;
   }
   .faq-items details p {
-    font-size: 12px;
+    font-size: 14px;
   }
   .closing {
     padding: 43px 17px 26px;
@@ -1381,16 +1408,13 @@ h1 em {
     font-size: 12px;
   }
   .lang-zh h1 {
-    font-size: 66px;
+    font-size: clamp(54px, 15.8vw, 72px);
     letter-spacing: -3px;
     margin: 21px 0;
   }
   .lang-zh .hero-intro {
-    font-size: 14px;
+    font-size: 15px;
     max-width: 320px;
-  }
-  .lang-zh .hero {
-    min-height: 710px;
   }
   .lang-zh .section-intro h2,
   .lang-zh .section-heading h2 {
@@ -1398,8 +1422,8 @@ h1 em {
     line-height: 1.4;
   }
   .lang-zh .spoken-text {
-    font-size: 14px;
-    line-height: 1.9;
+    font-size: 15px;
+    line-height: 1.8;
   }
   .lang-zh .clean-list,
   .lang-zh .clean-prose {
@@ -1439,16 +1463,10 @@ h1 em {
     display: none;
   }
   h1 {
-    font-size: 55px;
+    font-size: 48px;
   }
   .hero-actions {
     gap: 17px;
-  }
-  .hero-intro {
-    font-size: 13px;
-  }
-  .hero {
-    padding-bottom: 190px;
   }
   .requirements {
     max-width: 265px;
@@ -1467,7 +1485,7 @@ h1 em {
     font-size: 42px;
   }
   .lang-zh h1 {
-    font-size: 59px;
+    font-size: 54px;
   }
   .story-card {
     width: calc(100vw - 32px);

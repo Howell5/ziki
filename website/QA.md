@@ -40,3 +40,17 @@ The following checks extend the initial local verification above:
 - Cloudflare Workers Builds is connected to `main` for `website/**` changes. Automatic deployment verification is reported separately after pushing the production configuration commit.
 
 No desktop package was built, installed, or released. Search Console submission and indexing have not been verified.
+
+## Mobile refinement and scroll demos — 2026-09-12
+
+This revision replaces the original tabbed, manually started demo behavior described above.
+
+- Mobile hero uses a shorter, content-driven layout with the ink image blended into the paper background; larger body text and 44px primary touch targets improve reading and interaction.
+- Both scenarios are now independently visible cards, including in prerendered HTML. No tab or play-button discovery is required.
+- Production build, TypeScript, and all six Node tests pass. HTML checks now verify that both complete examples and their respective list/prose results ship in both languages.
+- Ego Browser regression passed against the built static output on port 4175: entering view starts each card independently, leaving view cancels the pending stage, returning resumes, completion does not loop on re-entry, and Replay/Stop work.
+- Card height is identical before and after the result is revealed. Reduced-motion emulation skips playback and shows the result without an active waveform.
+- Both languages passed overflow and broken-image checks at 320×740, 390×844, 844×390, and 1440×1000. Chinese mobile hero and completed demo screenshots were visually reviewed.
+- An earlier dev-server run timed out during hot updates; the completed regression above used the production static build instead.
+
+These are Chromium device-emulation checks, not physical iPhone/Safari testing. No microphone, clipboard, or model API is used by the examples.
