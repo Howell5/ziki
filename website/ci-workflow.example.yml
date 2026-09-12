@@ -1,0 +1,38 @@
+# Inactive example. A maintainer with workflow permission can install this as
+# .github/workflows/website.yml to enable the website checks.
+name: Website
+
+on:
+  push:
+    branches: [main]
+    paths: ['website/**', '.github/workflows/website.yml']
+  pull_request:
+    paths: ['website/**', '.github/workflows/website.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  static-site:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: website
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-node@v7.0.0
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: website/package-lock.json
+      - run: npm ci
+      - run: npm run build
+      - run: npm run check
+      - run: npm test
+      - uses: actions/upload-artifact@v7.0.1
+        with:
+          name: ziki-static-website
+          path: website/dist/client/
+          if-no-files-found: error
+          retention-days: 14

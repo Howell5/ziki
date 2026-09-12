@@ -8,6 +8,8 @@ Ziki 是一个专注于 macOS 的原生语音输入 App：单击 `fn` 开始说�
 
 当前 Apple Silicon 测试版可从 [GitHub Releases](https://github.com/Howell5/ziki/releases/tag/v0.5.0) 下载。
 
+中英文产品官网位于 [`website/`](website/README.md)，以静态页面输出。开发、预览和部署说明见该目录的 README。
+
 Ziki 取意于子期与知音：听懂，再成文。新图标以两道相互呼应的弦形成 Z。
 
 ### 从旧品牌升级到 Ziki

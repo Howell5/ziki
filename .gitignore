@@ -13,3 +13,7 @@ Packaging/Brand/
 *.mobileprovision
 *.xcuserstate
 xcuserdata/
+website/node_modules/
+website/dist/
+website/.tanstack/
+website/.output/

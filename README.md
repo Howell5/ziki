@@ -8,6 +8,8 @@ Ziki is a focused, native voice-to-text app for macOS. Tap `fn` to start speakin
 
 Download the current Apple Silicon preview from [GitHub Releases](https://github.com/Howell5/ziki/releases/tag/v0.5.0).
 
+The bilingual product website lives in [`website/`](website/README.md), with English and Chinese static pages. See its README for local preview and publishing instructions.
+
 The name takes inspiration from Ziqi, the legendary listener who understood the meaning behind the music. Two resonating ribbons form the Z in the logo: understand first, then put it into words.
 
 ### Upgrading from the previous brand
