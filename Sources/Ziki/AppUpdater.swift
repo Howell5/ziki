@@ -4,6 +4,7 @@ import Foundation
 import ZikiCore
 
 enum AppUpdateState: Equatable {
+    case disabled
     case idle
     case checking
     case current(version: String)
@@ -21,6 +22,10 @@ final class AppUpdater: ObservableObject {
     private var task: Task<Void, Never>?
 
     init() {
+        guard AppEnvironment.updaterEnabled else {
+            state = .disabled
+            return
+        }
         let errorURL = FileManager.default.urls(
             for: .applicationSupportDirectory,
             in: .userDomainMask
@@ -35,6 +40,7 @@ final class AppUpdater: ObservableObject {
     }
 
     func check() {
+        guard AppEnvironment.updaterEnabled else { return }
         task?.cancel()
         state = .checking
         task = Task {
@@ -59,6 +65,7 @@ final class AppUpdater: ObservableObject {
     }
 
     func install() {
+        guard AppEnvironment.updaterEnabled else { return }
         guard case let .available(package) = state else { return }
         task?.cancel()
         state = .downloading(version: package.version)

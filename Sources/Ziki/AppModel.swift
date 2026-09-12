@@ -69,7 +69,7 @@ final class AppModel: ObservableObject {
     let historyStore: DictationHistoryStore
     let settingsNavigation: SettingsNavigationState
     let updater = AppUpdater()
-    let outputMute = RecordingOutputMute()
+    let outputMute: RecordingOutputMute
 
     private var stateMachine = DictationStateMachine()
     private weak var overlayController: OverlayPanelController?
@@ -78,7 +78,7 @@ final class AppModel: ObservableObject {
     private let audioTransport = AudioTransportRunner()
     private let textInsertion = TextInsertionService()
     private var dictationContext = DictationContext()
-    private let diagnosticsStore = DictationDiagnosticsStore()
+    private let diagnosticsStore: DictationDiagnosticsStore
     private let insertionReadiness = AppModelInsertionReadiness()
     private lazy var outputCoordinator = DictationOutputCoordinator(
         history: historyStore,
@@ -105,17 +105,26 @@ final class AppModel: ObservableObject {
         settings: SettingsStore = SettingsStore(),
         permissions: PermissionCenter = PermissionCenter(),
         keychain: KeychainStore = KeychainStore(),
-        historyStore: DictationHistoryStore = DictationHistoryStore(),
+        historyStore: DictationHistoryStore? = nil,
         settingsNavigation: SettingsNavigationState = SettingsNavigationState()
     ) {
         self.settings = settings
         self.permissions = permissions
         self.keychain = keychain
-        self.historyStore = historyStore
+        self.historyStore = historyStore ?? DictationHistoryStore(
+            fileURL: AppEnvironment.historyFileURL,
+            scheduler: DictationHistoryTaskScheduler()
+        )
         self.settingsNavigation = settingsNavigation
+        self.outputMute = RecordingOutputMute(
+            defaults: AppEnvironment.userDefaults
+        )
+        self.diagnosticsStore = DictationDiagnosticsStore(
+            directoryURL: AppEnvironment.diagnosticsDirectoryURL
+        )
         settingsNavigationCoordinator = SettingsNavigationCoordinator(
             state: settingsNavigation,
-            historyPurger: historyStore
+            historyPurger: self.historyStore
         )
         insertionReadiness.wait = { [weak self] in
             await self?.waitUntilReadyForInsertion() ?? false
