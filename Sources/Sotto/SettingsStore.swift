@@ -45,6 +45,7 @@ final class SettingsStore: ObservableObject {
         static let language = "asrLanguage"
         static let cleanupEnabled = "cleanupEnabled"
         static let contextEnabled = "contextEnabled"
+        static let muteOutputWhileRecording = "muteOutputWhileRecording"
         static let diagnosticsEnabled = "diagnosticsEnabled"
         static let launchAtLogin = "launchAtLogin"
         static let onboardingComplete = "onboardingComplete"
@@ -80,6 +81,10 @@ final class SettingsStore: ObservableObject {
         didSet { defaults.set(contextEnabled, forKey: Key.contextEnabled) }
     }
 
+    @Published var muteOutputWhileRecording: Bool {
+        didSet { defaults.set(muteOutputWhileRecording, forKey: Key.muteOutputWhileRecording) }
+    }
+
     @Published var launchAtLogin: Bool {
         didSet { defaults.set(launchAtLogin, forKey: Key.launchAtLogin) }
     }
@@ -100,6 +105,8 @@ final class SettingsStore: ObservableObject {
             ? BailianCleanupPolicy.enabledByDefault
             : defaults.bool(forKey: Key.cleanupEnabled)
         diagnosticsEnabled = defaults.bool(forKey: Key.diagnosticsEnabled)
+        muteOutputWhileRecording = defaults.object(forKey: Key.muteOutputWhileRecording) == nil
+            ? true : defaults.bool(forKey: Key.muteOutputWhileRecording)
         contextEnabled = defaults.object(forKey: Key.contextEnabled) == nil
             ? true : defaults.bool(forKey: Key.contextEnabled)
         launchAtLogin = defaults.bool(forKey: Key.launchAtLogin)

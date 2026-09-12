@@ -93,6 +93,7 @@ struct SottoApp: App {
             MenuBarView()
                 .environmentObject(appDelegate.model)
                 .environmentObject(appDelegate.model.settings)
+                .environmentObject(appDelegate.model.outputMute)
         } label: {
             Image(nsImage: menuBarImage)
                 .accessibilityLabel("Sotto")

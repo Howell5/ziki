@@ -69,6 +69,7 @@ final class AppModel: ObservableObject {
     let historyStore: DictationHistoryStore
     let settingsNavigation: SettingsNavigationState
     let updater = AppUpdater()
+    let outputMute = RecordingOutputMute()
 
     private var stateMachine = DictationStateMachine()
     private weak var overlayController: OverlayPanelController?
@@ -603,30 +604,35 @@ final class AppModel: ObservableObject {
         pcmContinuation = pipe.continuation
 
         do {
-            try microphone.start(
-                onPCM: { data in
-                    pipe.continuation.yield(data)
-                },
-                onLevel: { [weak self] level in
-                    Task { @MainActor [weak self] in
-                        guard self?.phase == .listening else { return }
-                        self?.audioLevel = level
-                    }
-                },
-                onError: { [weak self] error in
-                    let message = error.localizedDescription
-                    Task { @MainActor [weak self] in
-                        if self?.diagnosticSessionID == sessionID {
-                            self?.diagnosticsStore.recordFailure(
-                                sessionID: sessionID,
-                                stage: "audio_capture",
-                                message: message
-                            )
+            try outputMute.start(enabled: settings.muteOutputWhileRecording) {
+                try microphone.start(
+                    onPCM: { data in
+                        pipe.continuation.yield(data)
+                    },
+                    onLevel: { [weak self] level in
+                        Task { @MainActor [weak self] in
+                            guard self?.phase == .listening else { return }
+                            self?.audioLevel = level
                         }
-                        self?.transitionToFailure(message, sessionID: sessionID)
+                    },
+                    onError: { [weak self] error in
+                        let message = error.localizedDescription
+                        Task { @MainActor [weak self] in
+                            if self?.diagnosticSessionID == sessionID {
+                                self?.diagnosticsStore.recordFailure(
+                                    sessionID: sessionID,
+                                    stage: "audio_capture",
+                                    message: message
+                                )
+                            }
+                            self?.transitionToFailure(message, sessionID: sessionID)
+                        }
                     }
-                }
-            )
+                )
+            }
+            if let notice = outputMute.notice {
+                audioInputNotice = [audioInputNotice, notice].compactMap { $0 }.joined(separator: " · ")
+            }
             if diagnosticSessionID == sessionID {
                 diagnosticsStore.recordStage(
                     sessionID: sessionID,
@@ -735,7 +741,7 @@ final class AppModel: ObservableObject {
         recordingLimitTask = nil
         audioLevel = 0
         audioInputNotice = nil
-        let capturedPCM = microphone.stop()
+        let capturedPCM = stopMicrophone()
         if let diagnosticSessionID {
             diagnosticsStore.recordAudio(
                 sessionID: diagnosticSessionID,
@@ -1016,7 +1022,7 @@ final class AppModel: ObservableObject {
         pendingHistoryProviderID = nil
         diagnosticSessionID = nil
 
-        _ = microphone.stop()
+        _ = stopMicrophone()
         pcmContinuation?.finish()
         pcmContinuation = nil
         transportTask?.cancel()
@@ -1033,6 +1039,10 @@ final class AppModel: ObservableObject {
                 await session.cancel()
             }
         }
+    }
+
+    private func stopMicrophone() -> Data {
+        outputMute.stop { microphone.stop() }
     }
 
     private func message(for failure: ASRFailure) -> String {

@@ -172,6 +172,7 @@ private struct PermissionRow: View {
 private struct SpeechSettingsView: View {
     @EnvironmentObject private var model: AppModel
     @EnvironmentObject private var settings: SettingsStore
+    @EnvironmentObject private var outputMute: RecordingOutputMute
 
     var body: some View {
         Form {
@@ -184,6 +185,22 @@ private struct SpeechSettingsView: View {
                 LabeledContent("快捷键") {
                     Text("单击 fn 开始／结束")
                         .foregroundStyle(.secondary)
+                }
+            }
+
+            Section("录音时的声音") {
+                Toggle("录音时静音系统声音", isOn: $settings.muteOutputWhileRecording)
+                    .disabled(model.phase != .idle)
+                Text("默认开启。视频和音乐继续播放，仅静音当前系统输出，不修改音量；麦克风停止后立即恢复。该输出上的通知声也会静音，不覆盖单独指定到其他设备的播放器。不支持静音的设备会提示你手动操作。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                if let notice = outputMute.notice {
+                    Text(notice).font(.caption).foregroundStyle(.orange)
+                }
+                if outputMute.hasPendingRecovery && model.phase == .idle {
+                    Text("有尚未恢复的静音记录。请确认设备已连接，再恢复；强制退出无法即时恢复声音。")
+                        .font(.caption)
+                    Button("恢复上次由 Sotto 静音的设备") { outputMute.recoverPending() }
                 }
             }
 

@@ -1,10 +1,12 @@
 import AppKit
 import SwiftUI
 import SottoCore
+import SottoAppCore
 
 struct MenuBarView: View {
     @EnvironmentObject private var model: AppModel
     @EnvironmentObject private var settings: SettingsStore
+    @EnvironmentObject private var outputMute: RecordingOutputMute
 
     var body: some View {
         Text(statusLine)
@@ -43,6 +45,13 @@ struct MenuBarView: View {
         .disabled(model.phase != .idle)
 
         Divider()
+
+        if let notice = outputMute.notice {
+            Text(notice)
+        }
+        if outputMute.hasPendingRecovery && model.phase == .idle {
+            Button("恢复上次由 Sotto 静音的设备") { outputMute.recoverPending() }
+        }
 
         Button("Open Settings…") {
             model.openSettings()

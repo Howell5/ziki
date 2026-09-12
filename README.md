@@ -2,7 +2,7 @@
 
 Sotto 是一个专注于 macOS 的原生语音输入 App：单击 `fn` 开始说话，再次单击 `fn`，把识别并整理后的文本粘贴到完成处理时的系统键盘焦点。
 
-当前 Apple Silicon 测试版可从 [GitHub Releases](https://github.com/Howell5/sotto/releases/tag/v0.3.0) 下载。
+当前 Apple Silicon 测试版可从 [GitHub Releases](https://github.com/Howell5/sotto/releases/tag/v0.4.0) 下载。
 
 首版只保留这条核心闭环：
 
@@ -19,7 +19,7 @@ Sotto 是一个专注于 macOS 的原生语音输入 App：单击 `fn` 开始说
 
 当前发布包面向 Apple Silicon，支持 macOS 13 及以上版本。项目目前选择零成本分发，因此维护者构建使用固定的本地自签名证书，未经过 Apple Developer ID 签名和公证。
 
-1. 只从 [Sotto GitHub Release](https://github.com/Howell5/sotto/releases/tag/v0.3.0) 下载 DMG；同页的 `SHA256SUMS.txt` 可用于校验文件。
+1. 只从 [Sotto GitHub Release](https://github.com/Howell5/sotto/releases/tag/v0.4.0) 下载 DMG；同页的 `SHA256SUMS.txt` 可用于校验文件。
 2. 打开 DMG，把 Sotto 拖入 **Applications**。
 3. 首次打开如果被 macOS 阻止，先尝试右键 Sotto 并选择 **打开**。
 4. 如果仍被阻止，先触发一次打开，再进入“系统设置 → 隐私与安全性”，只对 Sotto 点击 **仍要打开**，验证本机密码后确认打开。
@@ -181,6 +181,12 @@ Fun-ASR 在录音时持续发送 PCM 音频并接收实时结果；Qwen3.5 Flash
 
 听写时按 `Esc` 会取消本次录音。Sotto 对 `fn` 有约 120ms 的防误触判断；`fn` 与 F 功能键、方向键或其他组合键一起使用时不会触发听写。也可以从菜单栏选择 **Start Listening / Stop Listening**。
 
+**语音 → 录音时静音系统声音** 默认开启：开始采集麦克风前静音当前系统输出，停止采集后立即恢复，不等待 ASR 或千问。音乐和视频继续播放，音量值不变；原本静音的设备不会被自动解除静音，手动调节的音量也不会被覆盖。录音失败、取消、超时结束及正常退出共用恢复路径；录音引擎内部重启不会提前恢复声音。
+
+切换默认输出设备时，先静音新设备，再恢复旧设备。仅支持提供设备级可写静音开关的输出，不支持的 HDMI／声道级设备会提示手动静音；不控制单独路由到其他设备的播放器。该设备上的通知音也会静音。
+
+设备断开、恢复失败或应用强制退出时，按设备 UID 保留少量恢复记录（不含音频）。重新启动不会擅自开声；连接设备后，可从菜单栏或语音设置点击 **恢复上次由 Sotto 静音的设备**。强制结束进程无法保证即时恢复，可先用系统静音键手动恢复。录制期间主动解除静音后不会被持续强制静音；当前实现按恢复时的静音状态判断，不能区分用户“解除后又重新静音”和原本由 Sotto 设置的静音，因此这种情况下建议关闭自动静音功能。
+
 如果默认输入是经典蓝牙耳机，Sotto 会显示提示但仍正常录音。受蓝牙 HFP 限制，录音期间耳机播放音质会暂时下降；结束或取消听写后，Sotto 会完整释放音频引擎，让系统切回高质量播放。希望听写时音乐也保持高质量，可把系统输入改为 MacBook 麦克风，耳机只作为输出。
 
 每次有效听写的最终文本会先写入本机历史，再尝试系统粘贴。可从设置侧边栏的 **历史** 或菜单栏 **Open History…** 搜索、复制或删除记录；复制只写入剪贴板，不会替你再次粘贴。历史固定保留 30 天，也可手动清空全部。
@@ -202,7 +208,7 @@ Fun-ASR 在录音时持续发送 PCM 音频并接收实时结果；Qwen3.5 Flash
 
 ## 分发状态
 
-打开 `outputs/Sotto-0.3.0-macOS-arm64.dmg`，将 Sotto 拖入 **Applications**。之后可以从 Dock、Spotlight、Launchpad、Finder 或菜单栏打开；再次点击 Dock 图标会恢复设置窗口。
+打开 `outputs/Sotto-0.4.0-macOS-arm64.dmg`，将 Sotto 拖入 **Applications**。之后可以从 Dock、Spotlight、Launchpad、Finder 或菜单栏打开；再次点击 Dock 图标会恢复设置窗口。
 
 当前项目选择零成本分发，`package-distribution.sh` 默认使用 `Sotto Local Development` 固定本地签名，**尚未 notarize**。这能让维护者 Mac 在版本更新后保持同一应用身份，但其他 Mac 不会自动信任该证书，Gatekeeper 仍会提示未验证的开发者。
 
