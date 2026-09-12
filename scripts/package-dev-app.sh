@@ -3,7 +3,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-IDENTITY="${SOTTO_DEVELOPMENT_CODESIGN_IDENTITY:-Sotto Local Development}"
+IDENTITY="${ZIKI_DEVELOPMENT_CODESIGN_IDENTITY:-Sotto Local Development}"
 
 if ! command -v security >/dev/null 2>&1; then
     printf 'error: macOS security tool was not found\n' >&2
@@ -29,6 +29,6 @@ EOF
 fi
 
 printf 'Using stable local development identity: %s\n' "$IDENTITY"
-SOTTO_CODESIGN_IDENTITY="$IDENTITY" \
-SOTTO_CODESIGN_TIMESTAMP=none \
+ZIKI_CODESIGN_IDENTITY="$IDENTITY" \
+ZIKI_CODESIGN_TIMESTAMP=none \
     "$SCRIPT_DIR/package-app.sh"

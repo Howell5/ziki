@@ -5,11 +5,11 @@ set -euo pipefail
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd)"
 OUTPUT_DIR="$PROJECT_ROOT/outputs"
-APP_BUNDLE="$OUTPUT_DIR/Sotto.app"
+APP_BUNDLE="$OUTPUT_DIR/Ziki.app"
 INFO_PLIST="$PROJECT_ROOT/Packaging/Info.plist"
 VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$INFO_PLIST")"
 ARCHITECTURE="$(uname -m)"
-ARTIFACT_BASENAME="Sotto-${VERSION}-macOS-${ARCHITECTURE}"
+ARTIFACT_BASENAME="Ziki-${VERSION}-macOS-${ARCHITECTURE}"
 ZIP_PATH="$OUTPUT_DIR/${ARTIFACT_BASENAME}.zip"
 DMG_PATH="$OUTPUT_DIR/${ARTIFACT_BASENAME}.dmg"
 
@@ -20,19 +20,19 @@ for tool in hdiutil ditto; do
     fi
 done
 
-if [[ -n "${SOTTO_CODESIGN_IDENTITY:-}" ]]; then
+if [[ -n "${ZIKI_CODESIGN_IDENTITY:-}" ]]; then
     "$SCRIPT_DIR/package-app.sh"
 else
     "$SCRIPT_DIR/package-dev-app.sh"
 fi
 
-STAGING_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/sotto-distribution.XXXXXX")"
+STAGING_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/ziki-distribution.XXXXXX")"
 DMG_SOURCE="$STAGING_ROOT/dmg"
 TEMP_DMG="$STAGING_ROOT/${ARTIFACT_BASENAME}.dmg"
 trap 'rm -rf -- "$STAGING_ROOT"' EXIT
 
 mkdir -p "$DMG_SOURCE"
-ditto "$APP_BUNDLE" "$DMG_SOURCE/Sotto.app"
+ditto "$APP_BUNDLE" "$DMG_SOURCE/Ziki.app"
 ln -s /Applications "$DMG_SOURCE/Applications"
 
 if [[ -e "$ZIP_PATH" ]]; then
@@ -47,7 +47,7 @@ ditto \
     "$ZIP_PATH"
 
 hdiutil create \
-    -volname "Sotto" \
+    -volname "Ziki" \
     -srcfolder "$DMG_SOURCE" \
     -format UDZO \
     -imagekey zlib-level=9 \
@@ -62,4 +62,4 @@ printf '\nDistribution artifacts:\n'
 printf '  App: %s\n' "$APP_BUNDLE"
 printf '  DMG: %s\n' "$DMG_PATH"
 printf '  ZIP: %s\n' "$ZIP_PATH"
-printf '\nInstall by opening the DMG and dragging Sotto.app to Applications.\n'
+printf '\nInstall by opening the DMG and dragging Ziki.app to Applications.\n'

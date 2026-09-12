@@ -1,10 +1,10 @@
 // Opt-in live evaluation. Uses the production request builder and polisher.
-// Compile after `swift build`, linking SottoCore.build/*.o and
-// Sources/Sotto/TranscriptPolisher.swift; see README for the full command.
+// Compile after `swift build`, linking ZikiCore.build/*.o and
+// Sources/Ziki/TranscriptPolisher.swift; see README for the full command.
 // Credentials are read from environment and never printed. Makes one paid
 // cleanup request per sample, sequentially; never records audio or past history.
 import Foundation
-import SottoCore
+import ZikiCore
 
 @main
 struct CleanupEvaluation {
@@ -17,13 +17,13 @@ struct CleanupEvaluation {
 
     static func main() async throws {
         let environment = ProcessInfo.processInfo.environment
-        guard let key = environment["SOTTO_EVAL_API_KEY"], !key.isEmpty,
-              let workspace = environment["SOTTO_EVAL_WORKSPACE"],
+        guard let key = environment["ZIKI_EVAL_API_KEY"], !key.isEmpty,
+              let workspace = environment["ZIKI_EVAL_WORKSPACE"],
               let route = BailianCleanupRoute.resolve(
-                region: environment["SOTTO_EVAL_REGION"] == "international" ? .singapore : .mainlandChina,
+                region: environment["ZIKI_EVAL_REGION"] == "international" ? .singapore : .mainlandChina,
                 workspaceInput: workspace
               ) else {
-            fatalError("Set SOTTO_EVAL_API_KEY and SOTTO_EVAL_WORKSPACE; optionally SOTTO_EVAL_REGION=international")
+            fatalError("Set ZIKI_EVAL_API_KEY and ZIKI_EVAL_WORKSPACE; optionally ZIKI_EVAL_REGION=international")
         }
         let technicalContext = [DictationContext.Turn(
             rawTranscript: "刚才说的是 P1 问题，不是 PE。我们在讨论用于匹配 Base64 的正则表达式。",

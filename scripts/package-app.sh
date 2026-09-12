@@ -5,12 +5,12 @@ set -euo pipefail
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd)"
 INFO_PLIST="$PROJECT_ROOT/Packaging/Info.plist"
-ENTITLEMENTS="$PROJECT_ROOT/Packaging/Sotto.entitlements"
+ENTITLEMENTS="$PROJECT_ROOT/Packaging/Ziki.entitlements"
 ASSETS_DIR="$PROJECT_ROOT/Packaging/Assets"
 OUTPUT_DIR="$PROJECT_ROOT/outputs"
-APP_BUNDLE="$OUTPUT_DIR/Sotto.app"
-SIGN_IDENTITY="${SOTTO_CODESIGN_IDENTITY:--}"
-TIMESTAMP_MODE="${SOTTO_CODESIGN_TIMESTAMP:-auto}"
+APP_BUNDLE="$OUTPUT_DIR/Ziki.app"
+SIGN_IDENTITY="${ZIKI_CODESIGN_IDENTITY:--}"
+TIMESTAMP_MODE="${ZIKI_CODESIGN_TIMESTAMP:-auto}"
 
 for tool in swift plutil codesign; do
     if ! command -v "$tool" >/dev/null 2>&1; then
@@ -21,7 +21,7 @@ done
 
 if [[ ! -f "$INFO_PLIST" || ! -f "$ENTITLEMENTS" \
    || ! -f "$ASSETS_DIR/AppIcon.icns" \
-   || ! -f "$ASSETS_DIR/SottoMenuBarTemplate.png" ]]; then
+   || ! -f "$ASSETS_DIR/ZikiMenuBarTemplate.png" ]]; then
     printf 'error: packaging metadata is incomplete under %s/Packaging\n' "$PROJECT_ROOT" >&2
     exit 1
 fi
@@ -29,50 +29,50 @@ fi
 plutil -lint "$INFO_PLIST" >/dev/null
 plutil -lint "$ENTITLEMENTS" >/dev/null
 
-printf 'Building Sotto in release mode…\n'
+printf 'Building Ziki in release mode…\n'
 swift build \
     --package-path "$PROJECT_ROOT" \
     --configuration release \
-    --product Sotto
+    --product Ziki
 swift build \
     --package-path "$PROJECT_ROOT" \
     --configuration release \
-    --product SottoUpdater
+    --product ZikiUpdater
 
 BIN_DIR="$(swift build \
     --package-path "$PROJECT_ROOT" \
     --configuration release \
     --show-bin-path)"
-BINARY="$BIN_DIR/Sotto"
-UPDATER_BINARY="$BIN_DIR/SottoUpdater"
+BINARY="$BIN_DIR/Ziki"
+UPDATER_BINARY="$BIN_DIR/ZikiUpdater"
 
 if [[ ! -x "$BINARY" || ! -x "$UPDATER_BINARY" ]]; then
     printf 'error: release executables were not found under %s\n' "$BIN_DIR" >&2
     exit 1
 fi
 
-STAGING_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/sotto-package.XXXXXX")"
-STAGED_APP="$STAGING_ROOT/Sotto.app"
+STAGING_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/ziki-package.XXXXXX")"
+STAGED_APP="$STAGING_ROOT/Ziki.app"
 trap 'rm -rf -- "$STAGING_ROOT"' EXIT
 
 mkdir -p "$STAGED_APP/Contents/MacOS" "$STAGED_APP/Contents/Resources"
-install -m 0755 "$BINARY" "$STAGED_APP/Contents/MacOS/Sotto"
+install -m 0755 "$BINARY" "$STAGED_APP/Contents/MacOS/Ziki"
 install -m 0755 \
     "$UPDATER_BINARY" \
-    "$STAGED_APP/Contents/MacOS/SottoUpdater"
+    "$STAGED_APP/Contents/MacOS/ZikiUpdater"
 install -m 0644 "$INFO_PLIST" "$STAGED_APP/Contents/Info.plist"
 install -m 0644 "$ASSETS_DIR/AppIcon.icns" "$STAGED_APP/Contents/Resources/AppIcon.icns"
 install -m 0644 \
-    "$ASSETS_DIR/SottoMenuBarTemplate.png" \
-    "$STAGED_APP/Contents/Resources/SottoMenuBarTemplate.png"
+    "$ASSETS_DIR/ZikiMenuBarTemplate.png" \
+    "$STAGED_APP/Contents/Resources/ZikiMenuBarTemplate.png"
 
 GIT_COMMIT="$(git -C "$PROJECT_ROOT" rev-parse --short HEAD 2>/dev/null || true)"
 if [[ -n "$GIT_COMMIT" ]]; then
     /usr/libexec/PlistBuddy \
-        -c "Add :SottoBuildCommit string $GIT_COMMIT" \
+        -c "Add :ZikiBuildCommit string $GIT_COMMIT" \
         "$STAGED_APP/Contents/Info.plist" 2>/dev/null \
         || /usr/libexec/PlistBuddy \
-            -c "Set :SottoBuildCommit $GIT_COMMIT" \
+            -c "Set :ZikiBuildCommit $GIT_COMMIT" \
             "$STAGED_APP/Contents/Info.plist"
 fi
 
@@ -92,7 +92,7 @@ case "$TIMESTAMP_MODE" in
         TIMESTAMP_ARGUMENT=(--timestamp)
         ;;
     *)
-        printf 'error: SOTTO_CODESIGN_TIMESTAMP must be auto, none, or secure\n' >&2
+        printf 'error: ZIKI_CODESIGN_TIMESTAMP must be auto, none, or secure\n' >&2
         exit 1
         ;;
 esac
@@ -101,7 +101,7 @@ codesign \
     --options runtime \
     "${TIMESTAMP_ARGUMENT[@]}" \
     --sign "$SIGN_IDENTITY" \
-    "$STAGED_APP/Contents/MacOS/SottoUpdater"
+    "$STAGED_APP/Contents/MacOS/ZikiUpdater"
 codesign \
     --force \
     --options runtime \
