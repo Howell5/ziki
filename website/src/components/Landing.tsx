@@ -54,7 +54,7 @@ export function Landing({ language }: { language: Language }) {
         <div className="header-actions">
           <a
             className="language-switch"
-            href={language === "en" ? "/zh" : "/"}
+            href={language === "en" ? "/zh/" : "/"}
             hrefLang={language === "en" ? "zh-CN" : "en"}
             lang={language === "en" ? "zh-CN" : "en"}
             aria-label={c.languageLabel}
@@ -217,7 +217,7 @@ export function Landing({ language }: { language: Language }) {
       <footer className="site-footer frame">
         <a
           className="footer-brand"
-          href={language === "en" ? "/" : "/zh"}
+          href={language === "en" ? "/" : "/zh/"}
           aria-label={language === "en" ? "Ziki home" : "Ziki 首页"}
         >
           Ziki<span>© {new Date().getFullYear()}</span>

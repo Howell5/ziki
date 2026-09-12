@@ -51,6 +51,13 @@ for (const [language, file, lang] of [
     assert.ok(html.includes(copy[language].preview));
     assert.ok(html.includes(release.download));
     assert.match(html, /<h1[^>]*>/);
+    const canonical =
+      language === "en" ? "https://getziki.com/" : "https://getziki.com/zh/";
+    assert.ok(html.includes(`rel="canonical" href="${canonical}"`));
+    assert.match(html, /hrefLang="en" href="https:\/\/getziki\.com\/"/i);
+    assert.match(html, /hrefLang="zh-CN" href="https:\/\/getziki\.com\/zh\/"/i);
+    assert.match(html, /hrefLang="x-default" href="https:\/\/getziki\.com\/"/i);
+    assert.ok(html.includes("https://getziki.com/social-card.jpg"));
     assert.equal((html.match(/<h1\b/g) || []).length, 1);
     for (const source of html.matchAll(
       /(?:src|href)="(\/(?:assets\/|[^"\/]+\.(?:png|webp))[^"?#]*)"/g,
@@ -66,3 +73,23 @@ for (const [language, file, lang] of [
     );
   });
 }
+
+test("production crawl controls and 404 are shipped", () => {
+  const publicFile = (name) =>
+    readFileSync(new URL(`../dist/client/${name}`, import.meta.url), "utf8");
+  assert.match(
+    publicFile("robots.txt"),
+    /Sitemap: https:\/\/getziki\.com\/sitemap.xml/,
+  );
+  assert.ok(!publicFile("robots.txt").includes("Disallow: /"));
+  const sitemap = publicFile("sitemap.xml");
+  assert.equal((sitemap.match(/<loc>/g) || []).length, 2);
+  assert.ok(sitemap.includes("<loc>https://getziki.com/zh/</loc>"));
+  assert.match(publicFile("404.html"), /name="robots" content="noindex"/);
+  const config = JSON.parse(
+    readFileSync(new URL("../wrangler.jsonc", import.meta.url), "utf8"),
+  );
+  assert.equal(config.assets.not_found_handling, "404-page");
+  assert.equal(config.workers_dev, false);
+  assert.equal(config.preview_urls, false);
+});

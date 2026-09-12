@@ -24,4 +24,19 @@ Tested the production `dist/client/` output using a plain Python static server a
 - FAQ expands on activation; localized navigation changes document title and HTML language.
 - No error/warning events observed in the captured browser events during the final interaction round.
 
-The actual desktop app and its permissions were not exercised; they were not changed. No public hosting/deployment has been verified. The download URL was checked against the existing GitHub v0.5.0 release asset list, without downloading or installing the app.
+The actual desktop app and its permissions were not exercised; they were not changed. The download URL was checked against the existing GitHub v0.5.0 release asset list, without downloading or installing the app.
+
+## Production deployment — 2026-09-12
+
+The following checks extend the initial local verification above:
+
+- Deployed to Cloudflare Workers Static Assets as `ziki-website` with custom domains and valid HTTPS.
+- `https://getziki.com/` and `/zh/` return HTTP 200 and prerendered localized HTML.
+- HTTP and `www` requests return HTTP 301 to the HTTPS apex, preserving path and query parameters.
+- `robots.txt`, `sitemap.xml`, and `social-card.jpg` return HTTP 200 with appropriate content types; an unknown path returns HTTP 404.
+- Live Chinese mobile page at 390 × 844 has no horizontal overflow or broken images; document language, title, and canonical match the Chinese route.
+- Live English story card opens on hover and closes on Escape. The illustrative demo reaches Ready to use; language navigation reaches the Chinese page.
+- Build, TypeScript, and six automated tests pass, including canonical/hreflang/share metadata and crawl/static-host configuration. Wrangler dry-run and initial deployment both succeeded.
+- Cloudflare Workers Builds is connected to `main` for `website/**` changes. Automatic deployment verification is reported separately after pushing the production configuration commit.
+
+No desktop package was built, installed, or released. Search Console submission and indexing have not been verified.
