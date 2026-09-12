@@ -1,14 +1,14 @@
 # Ziki Cloud：技术方案
 
-状态：初稿。产品规则见 [产品文档](cloud-product.md)，阶段见 [执行计划](cloud-mvp-plan.md)。
+状态：分阶段实施依据。产品规则见 [产品文档](cloud-product.md)，阶段见 [执行计划](cloud-mvp-plan.md)。
 
 ## 模块与技术决策
 
 - `website/`：保留静态 TanStack 预渲染和 SEO；账号页面调用独立业务 API，官网不依赖模型或 Stripe 可用性。
-- `cloud/`（待创建）：Workers API、D1 迁移、测试和独立部署；local/staging/production 的数据库、凭证、支付模式隔离。
+- `cloud/`：已建立本地 Workers、D1 迁移和运行时测试；staging/production 待独立配置，不复用官网资源。
 - 客户端继续 Swift/AppKit/SwiftUI；不迁移 Electron，不为加账号重写录音、热键、静音和插入。
 - 最小基础为 Workers + D1；并发/长连接实测需要时才增加 Durable Objects，不预建音频仓库、向量库和微服务群。
-- 认证采用维护中的实现，P1 核验 Workers 与原生浏览器登录支持后定案，不手写密码或 OAuth 协议。
+- 认证采用 Better Auth 1.7.4 原生 D1 + device authorization + bearer；会话生命周期由库管理，不手写密码或 OAuth 协议。实际身份供应商待配置。
 - 所有具体 SDK/运行时配置在实现时核验官方文档和生成类型；此文不是已验证的代码样例。
 
 ## 客户端改造
@@ -22,6 +22,10 @@
 
 原生登录通过系统浏览器；按所选协议采用防截获、防重放机制（例如 PKCE），校验回调，不能凭自定义 URL 中的用户 ID 登录。
 Web 请求有 CSRF/Origin/Cookie 防护；原生令牌不放在易记录的 URL 中。身份和试用不依赖可伪造的设备 ID。
+
+P1 选择库提供的设备授权流：App 获短期设备码、打开同源验证页，用户登录并明确确认 App 中显示的代码；App 按间隔轮询领取会话。
+不依赖自定义 URL 回调，也不向 App 内置 client secret；验证码不等于访问令牌。验证页必须显示客户端及防钓鱼提示，未经确认不得自动批准。
+设备授权 UI、真实身份供应商、轮询退避和实际 App 联调属于 P2；仅有本地协议测试不能宣称已上线登录。
 
 P1 固定版本化接口：
 
@@ -49,6 +53,10 @@ P1 固定版本化接口：
 
 草案状态：created → reserved → processing → completed / failed / cancelled / expired。
 迁移、唯一约束、并发 SQL 必须在本地 D1 集成测试验证，内存 mock 不能证明数据库一致性。
+
+P1 实现把 created 与 reserved 合并为原子插入；每账号最多一个活跃听写。按最早到期授予分配预留，保留分配来源与实际用量流水。
+预留上限 300 秒，服务器期限为预留时长 + 120 秒；授予须覆盖完整期限，否则拒绝使用即将过期的额度。
+这些是当前安全上限，不是已批准的月费/套餐。结算函数只能接收服务端测得的时长，公共客户端无直接结算/授予入口。
 
 ## 支付、模型与部署
 
