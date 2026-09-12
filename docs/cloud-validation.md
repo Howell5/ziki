@@ -1,6 +1,6 @@
 # Ziki Cloud：测试、原生调试与成本控制
 
-状态：初稿；实际证据只维护在 [执行计划](cloud-mvp-plan.md)。
+状态：实施依据；实际证据只维护在 [执行计划](cloud-mvp-plan.md)。
 
 ## 测试选择
 
@@ -40,7 +40,7 @@ swift run --scratch-path /tmp/ziki-cloud-baseline.k1IyuZ ZikiAppTestHarness
 继续 Swift/AppKit/SwiftUI，可在 Xcode 打开现有 Swift Package，结合断点、LLDB、Console；确有性能问题再用 Instruments。
 无需为使用 IDE 重建项目结构，原生调试也不能替代后端或浏览器测试。
 
-当前 `scripts/package-app.sh` 固定 Release，尚无 Debug App 模式。进入客户端实现时增加最小 Debug 打包入口：
+`scripts/package-app.sh` 保持 Release；`scripts/package-dev-app.sh` 提供独立 Debug App：
 
 - 增量编译后装配完整 `.app`，包含正确 Info.plist、资源和 entitlement。
 - 稳定开发路径与签名；开发变体隔离设置、历史、Cloud 环境和 Keychain，关闭生产自动更新；不改正式版持久身份。
@@ -48,7 +48,18 @@ swift run --scratch-path /tmp/ziki-cloud-baseline.k1IyuZ ZikiAppTestHarness
 - 不用裸二进制或 `swift run Ziki` 测麦克风，不覆盖 `/Applications/Ziki.app` 做日常调试。
 - 不静默复制个人 Key/历史。录音和实时音量测试放在明确测试窗口，使用非敏感样本并确认恢复。
 
-上述入口尚未实现；本轮没有启动麦克风或宣称原生 Debug 包已存在。
+开发包输出 `outputs/Ziki-Dev.app`，默认增量缓存 `.build-dev`，可通过 `ZIKI_BUILD_SCRATCH_PATH` 复用已有缓存。
+Bundle ID / defaults suite 为 `com.willhong.sotto.dev`；数据目录 `Sotto-Dev`，Keychain service `com.sotto.voice.credentials.dev`。
+旧开发包重打包前保留带时间戳的备份；不嵌入 updater。首次使用仍需独立授权。
+
+## 后端本地验证
+
+在 `cloud/` 执行 `npm ci`，随后 `npm run types && npm run check && npm test`。
+`npm run migrate:local` 只修改本地 D1；重复运行应无待迁移项。`npm run build` **仅 dry-run**，不发布。
+测试在 Workers/Miniflare + D1 运行，身份为本地数据库 fixture，不访问真实登录/模型/Stripe。
+账号函数的测试通过不代表公开路由已开启；入口当前有硬关闭保护。
+认证配置与迁移由 Better Auth 管理，测试检查 schema drift，不能为了修测试跳过 schema 校验。
+依赖锁定说明和下一阶段配置门槛见 `cloud/README.md`。
 
 ## Token、API 与测试预算
 
