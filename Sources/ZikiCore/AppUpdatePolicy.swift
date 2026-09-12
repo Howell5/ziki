@@ -49,7 +49,7 @@ public enum AppUpdatePolicy {
                 browserDownloadURL.scheme == "https"
                     && browserDownloadURL.host == "github.com"
                     && browserDownloadURL.path.hasPrefix(
-                        "/Howell5/sotto/releases/download/"
+                        "/Howell5/ziki/releases/download/"
                     )
             }
         }

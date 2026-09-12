@@ -4,34 +4,34 @@
 
 **Goal:** Save every non-empty final dictation locally before system paste, expose 30 days of searchable history, and let users copy or delete records.
 
-**Architecture:** Add a testable `SottoCore` history store backed by one atomically-written JSON document in Application Support. `AppModel` owns the store and the state machine emits history-save before insertion. The existing settings window gains a shared navigation destination and a SwiftUI history pane.
+**Architecture:** Add a testable `ZikiCore` history store backed by one atomically-written JSON document in Application Support. `AppModel` owns the store and the state machine emits history-save before insertion. The existing settings window gains a shared navigation destination and a SwiftUI history pane.
 
-**Tech Stack:** Swift 6, Foundation Codable/FileManager, Combine `ObservableObject`, SwiftUI, executable `SottoCoreTestHarness` and `SottoAppTestHarness` targets. The installed Apple Command Line Tools expose neither XCTest nor Swift Testing, so app-level tests run through an executable harness against shared production modules.
+**Tech Stack:** Swift 6, Foundation Codable/FileManager, Combine `ObservableObject`, SwiftUI, executable `ZikiCoreTestHarness` and `ZikiAppTestHarness` targets. The installed Apple Command Line Tools expose neither XCTest nor Swift Testing, so app-level tests run through an executable harness against shared production modules.
 
 ---
 
 ## File Structure
 
-- Create `Sources/SottoCore/DictationHistory.swift`: entry/document types, retention/search/provider policies.
-- Create `Sources/SottoCore/DictationHistoryStore.swift`: observable in-memory state, JSON persistence, corruption backup, mutation rollback, expiry scheduling.
-- Create `Sources/Sotto/SettingsPane.swift`: shared settings navigation enum.
-- Create `Sources/SottoAppCore/DictationOutputCoordinator.swift`: injected history-before-paste orchestration.
-- Create `Sources/Sotto/DictationHistoryView.swift`: history list, search, copy/delete/clear UI.
-- Create `Tests/SottoAppTestHarness/main.swift`: app-level ordering, failure-continuation and navigation tests.
+- Create `Sources/ZikiCore/DictationHistory.swift`: entry/document types, retention/search/provider policies.
+- Create `Sources/ZikiCore/DictationHistoryStore.swift`: observable in-memory state, JSON persistence, corruption backup, mutation rollback, expiry scheduling.
+- Create `Sources/Ziki/SettingsPane.swift`: shared settings navigation enum.
+- Create `Sources/ZikiAppCore/DictationOutputCoordinator.swift`: injected history-before-paste orchestration.
+- Create `Sources/Ziki/DictationHistoryView.swift`: history list, search, copy/delete/clear UI.
+- Create `Tests/ZikiAppTestHarness/main.swift`: app-level ordering, failure-continuation and navigation tests.
 - Modify `Package.swift`: add the shared app-core module and app-level executable test harness.
-- Modify `Sources/SottoCore/DictationStateMachine.swift`: emit one final-output delivery effect.
-- Modify `Sources/Sotto/AppModel.swift`: own the store, capture provider, save history, route history navigation.
-- Modify `Sources/Sotto/SettingsRootView.swift`: add history pane and privacy disclosure.
-- Modify `Sources/Sotto/SettingsWindowController.swift`: inject the history store.
-- Modify `Sources/Sotto/MenuBarView.swift`: add Open History.
-- Modify `Tests/SottoCoreTestHarness/main.swift`: model, persistence, retention, ordering and navigation tests.
+- Modify `Sources/ZikiCore/DictationStateMachine.swift`: emit one final-output delivery effect.
+- Modify `Sources/Ziki/AppModel.swift`: own the store, capture provider, save history, route history navigation.
+- Modify `Sources/Ziki/SettingsRootView.swift`: add history pane and privacy disclosure.
+- Modify `Sources/Ziki/SettingsWindowController.swift`: inject the history store.
+- Modify `Sources/Ziki/MenuBarView.swift`: add Open History.
+- Modify `Tests/ZikiCoreTestHarness/main.swift`: model, persistence, retention, ordering and navigation tests.
 - Modify `README.md`: document local 30-day final-text history.
 
 ### Task 1: History data model and pure policies
 
 **Files:**
-- Create: `Sources/SottoCore/DictationHistory.swift`
-- Modify: `Tests/SottoCoreTestHarness/main.swift`
+- Create: `Sources/ZikiCore/DictationHistory.swift`
+- Modify: `Tests/ZikiCoreTestHarness/main.swift`
 
 - [ ] **Step 1: Write failing model and policy tests**
 
@@ -54,7 +54,7 @@ try expect(
 
 - [ ] **Step 2: Run the harness and verify RED**
 
-Run: `swift run SottoCoreTestHarness`
+Run: `swift run ZikiCoreTestHarness`
 
 Expected: compile failure because `DictationHistoryEntry` and `DictationHistoryPolicy` do not exist.
 
@@ -80,22 +80,22 @@ public struct DictationHistoryDocument: Codable, Equatable, Sendable {
 
 - [ ] **Step 4: Run the harness and verify GREEN**
 
-Run: `swift run SottoCoreTestHarness`
+Run: `swift run ZikiCoreTestHarness`
 
 Expected: all tests pass.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add Sources/SottoCore/DictationHistory.swift Tests/SottoCoreTestHarness/main.swift
+git add Sources/ZikiCore/DictationHistory.swift Tests/ZikiCoreTestHarness/main.swift
 git commit -m "Add dictation history model and retention policy"
 ```
 
 ### Task 2: Atomic local persistence and expiry scheduling
 
 **Files:**
-- Create: `Sources/SottoCore/DictationHistoryStore.swift`
-- Modify: `Tests/SottoCoreTestHarness/main.swift`
+- Create: `Sources/ZikiCore/DictationHistoryStore.swift`
+- Modify: `Tests/ZikiCoreTestHarness/main.swift`
 
 - [ ] **Step 1: Write failing store tests**
 
@@ -128,7 +128,7 @@ Use a manual fake `DictationHistoryExpirationScheduling` implementation that rec
 
 - [ ] **Step 2: Run the harness and verify RED**
 
-Run: `swift run SottoCoreTestHarness`
+Run: `swift run ZikiCoreTestHarness`
 
 Expected: compile failure because `DictationHistoryStore` is missing.
 
@@ -162,8 +162,8 @@ Expiry task behavior:
 Run:
 
 ```bash
-swift run SottoCoreTestHarness
-swift run SottoAppTestHarness
+swift run ZikiCoreTestHarness
+swift run ZikiAppTestHarness
 swift build -c release -Xswiftc -warnings-as-errors
 ```
 
@@ -172,7 +172,7 @@ Expected: both pass.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add Sources/SottoCore/DictationHistoryStore.swift Tests/SottoCoreTestHarness/main.swift
+git add Sources/ZikiCore/DictationHistoryStore.swift Tests/ZikiCoreTestHarness/main.swift
 git commit -m "Persist local dictation history"
 ```
 
@@ -180,11 +180,11 @@ git commit -m "Persist local dictation history"
 
 **Files:**
 - Modify: `Package.swift`
-- Modify: `Sources/SottoCore/DictationStateMachine.swift`
-- Create: `Sources/SottoAppCore/DictationOutputCoordinator.swift`
-- Modify: `Sources/Sotto/AppModel.swift`
-- Modify: `Tests/SottoCoreTestHarness/main.swift`
-- Create: `Tests/SottoAppTestHarness/main.swift`
+- Modify: `Sources/ZikiCore/DictationStateMachine.swift`
+- Create: `Sources/ZikiAppCore/DictationOutputCoordinator.swift`
+- Modify: `Sources/Ziki/AppModel.swift`
+- Modify: `Tests/ZikiCoreTestHarness/main.swift`
+- Create: `Tests/ZikiAppTestHarness/main.swift`
 
 - [ ] **Step 1: Write failing ordering tests**
 
@@ -204,17 +204,17 @@ Add a SwiftPM shared app-core module and executable app-level test harness:
 
 ```swift
 .target(
-    name: "SottoAppCore",
-    dependencies: ["SottoCore"]
+    name: "ZikiAppCore",
+    dependencies: ["ZikiCore"]
 ),
 .executableTarget(
-    name: "SottoAppTestHarness",
-    dependencies: ["SottoAppCore", "SottoCore"],
-    path: "Tests/SottoAppTestHarness"
+    name: "ZikiAppTestHarness",
+    dependencies: ["ZikiAppCore", "ZikiCore"],
+    path: "Tests/ZikiAppTestHarness"
 )
 ```
 
-In `SottoAppTestHarness`, inject fakes and prove:
+In `ZikiAppTestHarness`, inject fakes and prove:
 
 - the exact event order is history, insertion-readiness gate, then paste;
 - the provider ID passed to history is the supplied session provider;
@@ -225,7 +225,7 @@ In `SottoAppTestHarness`, inject fakes and prove:
 
 - [ ] **Step 2: Run harness and verify RED**
 
-Run: `swift run SottoCoreTestHarness`
+Run: `swift run ZikiCoreTestHarness`
 
 Expected: failure because `.saveHistory` is absent.
 
@@ -266,8 +266,8 @@ The coordinator appends synchronously, awaits the readiness gate exactly once, t
 Run:
 
 ```bash
-swift run SottoCoreTestHarness
-swift run SottoAppTestHarness
+swift run ZikiCoreTestHarness
+swift run ZikiAppTestHarness
 swift build -c release -Xswiftc -warnings-as-errors
 ```
 
@@ -276,19 +276,19 @@ Expected: pass.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add Package.swift Sources/SottoCore/DictationStateMachine.swift Sources/SottoAppCore/DictationOutputCoordinator.swift Sources/Sotto/AppModel.swift Tests/SottoCoreTestHarness/main.swift Tests/SottoAppTestHarness/main.swift
+git add Package.swift Sources/ZikiCore/DictationStateMachine.swift Sources/ZikiAppCore/DictationOutputCoordinator.swift Sources/Ziki/AppModel.swift Tests/ZikiCoreTestHarness/main.swift Tests/ZikiAppTestHarness/main.swift
 git commit -m "Save final dictations before paste"
 ```
 
 ### Task 4: Shared settings navigation and menu entry
 
 **Files:**
-- Create: `Sources/Sotto/SettingsPane.swift`
-- Modify: `Sources/Sotto/AppModel.swift`
-- Modify: `Sources/Sotto/SettingsRootView.swift`
-- Modify: `Sources/Sotto/SettingsWindowController.swift`
-- Modify: `Sources/Sotto/MenuBarView.swift`
-- Modify: `Tests/SottoAppTestHarness/main.swift`
+- Create: `Sources/Ziki/SettingsPane.swift`
+- Modify: `Sources/Ziki/AppModel.swift`
+- Modify: `Sources/Ziki/SettingsRootView.swift`
+- Modify: `Sources/Ziki/SettingsWindowController.swift`
+- Modify: `Sources/Ziki/MenuBarView.swift`
+- Modify: `Tests/ZikiAppTestHarness/main.swift`
 
 - [ ] **Step 1: Write failing app-level navigation tests**
 
@@ -301,7 +301,7 @@ Create shared observable `SettingsNavigationState` and `SettingsPane`, plus an i
 
 - [ ] **Step 2: Run harness and verify RED**
 
-Run: `swift run SottoAppTestHarness`
+Run: `swift run ZikiAppTestHarness`
 
 Expected: missing history destination.
 
@@ -318,7 +318,7 @@ Add `Open History…` to the menu between Copy Last Result and the divider.
 Run:
 
 ```bash
-swift run SottoAppTestHarness
+swift run ZikiAppTestHarness
 swift build -c release -Xswiftc -warnings-as-errors
 ```
 
@@ -327,15 +327,15 @@ Expected: pass.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add Sources/SottoAppCore/SettingsPane.swift Sources/Sotto/AppModel.swift Sources/Sotto/SettingsRootView.swift Sources/Sotto/SettingsWindowController.swift Sources/Sotto/MenuBarView.swift Tests/SottoAppTestHarness/main.swift
+git add Sources/ZikiAppCore/SettingsPane.swift Sources/Ziki/AppModel.swift Sources/Ziki/SettingsRootView.swift Sources/Ziki/SettingsWindowController.swift Sources/Ziki/MenuBarView.swift Tests/ZikiAppTestHarness/main.swift
 git commit -m "Add dictation history navigation"
 ```
 
 ### Task 5: History UI and privacy disclosure
 
 **Files:**
-- Create: `Sources/Sotto/DictationHistoryView.swift`
-- Modify: `Sources/Sotto/SettingsRootView.swift`
+- Create: `Sources/Ziki/DictationHistoryView.swift`
+- Modify: `Sources/Ziki/SettingsRootView.swift`
 - Modify: `README.md`
 
 - [ ] **Step 1: Add pure filtering/empty-state tests**
@@ -367,8 +367,8 @@ Change Privacy to `转写历史：本机保存 30 天`. Update README statements
 Run:
 
 ```bash
-swift run SottoCoreTestHarness
-swift run SottoAppTestHarness
+swift run ZikiCoreTestHarness
+swift run ZikiAppTestHarness
 swift build -c release -Xswiftc -warnings-as-errors
 git diff --check
 ```
@@ -378,7 +378,7 @@ Expected: pass.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add Sources/Sotto/DictationHistoryView.swift Sources/Sotto/SettingsRootView.swift README.md Tests/SottoCoreTestHarness/main.swift
+git add Sources/Ziki/DictationHistoryView.swift Sources/Ziki/SettingsRootView.swift README.md Tests/ZikiCoreTestHarness/main.swift
 git commit -m "Add local dictation history interface"
 ```
 
@@ -393,8 +393,8 @@ git commit -m "Add local dictation history interface"
 Run:
 
 ```bash
-swift run SottoCoreTestHarness
-swift run SottoAppTestHarness
+swift run ZikiCoreTestHarness
+swift run ZikiAppTestHarness
 swift build -c release -Xswiftc -warnings-as-errors
 plutil -lint Packaging/Info.plist
 git diff --check

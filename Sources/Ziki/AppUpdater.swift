@@ -143,7 +143,7 @@ private enum AppUpdateError: LocalizedError {
 
 private actor AppUpdateService {
     private static let releaseURL = URL(
-        string: "https://api.github.com/repos/Howell5/sotto/releases/latest"
+        string: "https://api.github.com/repos/Howell5/ziki/releases/latest"
     )!
     private static let maximumPackageSize = 200 * 1_024 * 1_024
 

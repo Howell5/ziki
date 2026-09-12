@@ -1,8 +1,10 @@
 # Ziki
 
+<img src="Packaging/Assets/ZikiIcon-1024.png" alt="Ziki 双弦 Z 标识" width="96" height="96">
+
 Ziki 是一个专注于 macOS 的原生语音输入 App：单击 `fn` 开始说话，再次单击 `fn`，把识别并整理后的文本粘贴到完成处理时的系统键盘焦点。
 
-当前 Apple Silicon 测试版可从 [GitHub Releases](https://github.com/Howell5/sotto/releases/tag/v0.5.0) 下载。
+当前 Apple Silicon 测试版可从 [GitHub Releases](https://github.com/Howell5/ziki/releases/tag/v0.5.0) 下载。
 
 Ziki 取意于子期与知音：听懂，再成文。新图标以两道相互呼应的弦形成 Z。
 
@@ -27,7 +29,7 @@ Ziki 取意于子期与知音：听懂，再成文。新图标以两道相互呼
 
 当前发布包面向 Apple Silicon，支持 macOS 13 及以上版本。项目目前选择零成本分发，因此维护者构建使用固定的本地自签名证书，未经过 Apple Developer ID 签名和公证。
 
-1. 只从 [Ziki GitHub Release](https://github.com/Howell5/sotto/releases/tag/v0.5.0) 下载 DMG；同页的 `SHA256SUMS.txt` 可用于校验文件。
+1. 只从 [Ziki GitHub Release](https://github.com/Howell5/ziki/releases/tag/v0.5.0) 下载 DMG；同页的 `SHA256SUMS.txt` 可用于校验文件。
 2. 打开 DMG，把 Ziki 拖入 **Applications**。
 3. 首次打开如果被 macOS 阻止，先尝试右键 Ziki 并选择 **打开**。
 4. 如果仍被阻止，先触发一次打开，再进入“系统设置 → 隐私与安全性”，只对 Ziki 点击 **仍要打开**，验证本机密码后确认打开。

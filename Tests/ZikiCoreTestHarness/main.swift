@@ -1384,7 +1384,7 @@ private func testAppUpdatePolicySelectsNewerSignedPackage() throws {
               "name": "Ziki-0.2.14-macOS-arm64.zip",
               "size": 1234,
               "digest": "sha256:\(digest)",
-              "browser_download_url": "https://github.com/Howell5/sotto/releases/download/v0.2.14/Ziki-0.2.14-macOS-arm64.zip"
+              "browser_download_url": "https://github.com/Howell5/ziki/releases/download/v0.2.14/Ziki-0.2.14-macOS-arm64.zip"
             }
           ]
         }
@@ -1402,7 +1402,7 @@ private func testAppUpdatePolicySelectsNewerSignedPackage() throws {
             AppUpdatePackage(
                 version: "0.2.14",
                 downloadURL: URL(
-                    string: "https://github.com/Howell5/sotto/releases/download/v0.2.14/Ziki-0.2.14-macOS-arm64.zip"
+                    string: "https://github.com/Howell5/ziki/releases/download/v0.2.14/Ziki-0.2.14-macOS-arm64.zip"
                 )!,
                 sha256: digest,
                 size: 1234
@@ -1431,6 +1431,19 @@ private func testAppUpdatePolicySelectsNewerSignedPackage() throws {
         throw TestFailure(description: "old-brand package was accepted")
     } catch let error as AppUpdatePolicyError {
         try expect(error, equals: .missingPackage, "Ziki releases require Ziki packages")
+    }
+
+    let oldRepositoryRelease = Data(String(decoding: release, as: UTF8.self)
+        .replacingOccurrences(of: "Howell5/ziki", with: "Howell5/sotto").utf8)
+    do {
+        _ = try AppUpdatePolicy.resolve(
+            releaseData: oldRepositoryRelease,
+            currentVersion: "0.2.13",
+            architecture: "arm64"
+        )
+        throw TestFailure(description: "old repository URL was accepted")
+    } catch let error as AppUpdatePolicyError {
+        try expect(error, equals: .missingPackage, "updates trust the renamed repository only")
     }
 }
 
