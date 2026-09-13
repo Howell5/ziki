@@ -55,9 +55,10 @@ Bundle ID / defaults suite 为 `com.willhong.sotto.dev`；数据目录 `Sotto-De
 ## 后端本地验证
 
 在 `cloud/` 执行 `npm ci`，随后 `npm run types && npm run check && npm test`。
+账号模板修改另运行 `npm run test:page-script`，在 Node 编译内联浏览器脚本，防止模板内语法错误绕过 TypeScript 检查；不在 Worker 开放运行时 eval。
 `npm run migrate:local` 只修改本地 D1；重复运行应无待迁移项。`npm run build` **仅 dry-run**，不发布。
 测试在 Workers/Miniflare + D1 运行，身份为本地数据库 fixture，不访问真实登录/模型/Stripe。
-账号函数的测试通过不代表公开路由已开启；入口当前有硬关闭保护。
+账号函数的测试通过不代表公开路由已上线；`AUTH_ENABLED` 默认关闭，允许隔离环境单独验证登录，语音/支付仍有硬关闭保护。
 认证配置与迁移由 Better Auth 管理，测试检查 schema drift，不能为了修测试跳过 schema 校验。
 依赖锁定说明和下一阶段配置门槛见 `cloud/README.md`。
 
