@@ -1,0 +1,27 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "ziki-cloud-local",
+  "main": "src/index.ts",
+  // Latest published workerd at implementation time; 2026-09-13 is not supported locally yet.
+  "compatibility_date": "2026-09-11",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": false,
+  "preview_urls": false,
+  "observability": { "enabled": true, "head_sampling_rate": 0.1, "logs": { "invocation_logs": false } },
+  "vars": {
+    "ENVIRONMENT": "local", "CLOUD_ENABLED": "false", "AUTH_ENABLED": "false",
+    "AUTH_ORIGIN": "http://127.0.0.1:8787",
+    "GOOGLE_CLIENT_ID": "", "DISCORD_CLIENT_ID": "",
+    "EMAIL_LOGIN_ENABLED": "false", "EMAIL_FROM": "login@getziki.com"
+  },
+  // Set secrets out of band; absent provider credentials keep that login disabled.
+  "secrets": { "required": ["BETTER_AUTH_SECRET", "GOOGLE_CLIENT_SECRET", "DISCORD_CLIENT_SECRET"] },
+  "send_email": [{ "name": "EMAIL", "allowed_sender_addresses": ["login@getziki.com"], "remote": false }],
+  "d1_databases": [{
+    "binding": "DB",
+    "database_name": "ziki-cloud-local",
+    "database_id": "00000000-0000-0000-0000-000000000000",
+    "migrations_dir": "migrations",
+    "remote": false
+  }]
+}

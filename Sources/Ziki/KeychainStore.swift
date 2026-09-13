@@ -7,7 +7,11 @@ actor KeychainStore {
         case miMo = "mimo-api-key"
     }
 
-    private let service = "com.sotto.voice.credentials"
+    private let service: String
+
+    init(service: String = AppEnvironment.keychainService) {
+        self.service = service
+    }
 
     func read(_ credential: Credential) -> String? {
         let query: [String: Any] = [

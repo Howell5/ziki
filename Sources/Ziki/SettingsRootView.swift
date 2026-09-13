@@ -491,6 +491,9 @@ private struct AboutSettingsView: View {
     @ViewBuilder
     private var updateControls: some View {
         switch updater.state {
+        case .disabled:
+            Text("开发版本不提供自动更新")
+                .foregroundStyle(.secondary)
         case .idle:
             Button("检查更新") {
                 updater.check()

@@ -93,7 +93,7 @@ final class SettingsStore: ObservableObject {
         didSet { defaults.set(onboardingComplete, forKey: Key.onboardingComplete) }
     }
 
-    init(defaults: UserDefaults = .standard) {
+    init(defaults: UserDefaults = AppEnvironment.userDefaults) {
         self.defaults = defaults
         provider = .funASR
         funRegion = FunRegion(

@@ -23,8 +23,12 @@ public final class RecordingOutputMute: ObservableObject {
     private var pending: Set<String>
 
     public convenience init() {
+        self.init(defaults: .standard)
+    }
+
+    public convenience init(defaults: UserDefaults) {
         self.init(
-            defaults: .standard,
+            defaults: defaults,
             currentDevice: OutputMuteHardware.currentDeviceUID,
             readMute: OutputMuteHardware.readMute,
             writeMute: OutputMuteHardware.writeMute,
