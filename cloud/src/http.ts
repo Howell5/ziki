@@ -31,5 +31,6 @@ export function privateResponse(response: Response): Response {
   headers.set("Cache-Control", "no-store");
   headers.set("X-Content-Type-Options", "nosniff");
   headers.set("Referrer-Policy", "no-referrer");
+  headers.set("X-Robots-Tag", "noindex, nofollow");
   return new Response(response.body, { status: response.status, headers });
 }
