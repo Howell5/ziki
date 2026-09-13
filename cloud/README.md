@@ -4,6 +4,22 @@ This is **not a launched subscription service**. `/account` and `/device` displa
 
 ## Local development
 
+### First-time configuration / 首次填写配置
+
+Copy [`.env.example`](.env.example) to `cloud/.env` (from the repository root):
+
+```sh
+cd cloud
+cp -n .env.example .env
+chmod 600 .env
+```
+
+The template explains each value, where to obtain it, exact local OAuth callbacks, and which sections can stay empty. Start with an independently generated `BETTER_AUTH_SECRET`, Google/Discord credentials, and the reserved Bailian Singapore credentials. Stripe can wait until the payment stage. **Bailian, model-test budget and Stripe fields are handoff placeholders, not implemented runtime features yet.**
+
+模板中的中文注释已列明获取位置和必填/可留空项。填完后通知维护者即可，不需粘贴密钥或自行部署。邮件没有额外 API Key，但真实发送仍须开通 Cloudflare 发信能力、验证域名；仅改环境变量不能完成这一步。
+
+`.env` is Git-ignored. Do not create both `.env` and `.dev.vars`: Wrangler prefers `.dev.vars` when it exists; `.env.local` can also override `.env`. Use only `cloud/.env` for this handoff. These files are local configuration, not automatic production secret uploads. The empty committed template contains no usable credentials.
+
 Requires Node 24. From this directory:
 
 ```sh
