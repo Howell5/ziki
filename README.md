@@ -6,7 +6,7 @@
 
 Ziki is a focused, native voice-to-text app for macOS. Tap `fn` to start speaking, then tap it again to transcribe, clean up, and paste your words into the field that has keyboard focus when processing finishes.
 
-Download the current Apple Silicon preview from [GitHub Releases](https://github.com/Howell5/ziki/releases/tag/v0.5.0).
+Download the current Apple Silicon preview from [GitHub Releases](https://github.com/Howell5/ziki/releases/tag/v0.6.0).
 
 Visit the [Ziki website](https://getziki.com) or [中文版](https://getziki.com/zh/). Website source and deployment instructions live in [`website/`](website/README.md).
 
@@ -33,7 +33,7 @@ Translation, chat, cloud history, and templates are outside the current scope.
 
 Current release packages target Apple Silicon and require macOS 13 or later. The project currently uses a no-cost distribution setup: maintainer builds use a fixed local self-signed certificate, not Apple Developer ID signing or notarization.
 
-1. Download the DMG only from the [Ziki GitHub release](https://github.com/Howell5/ziki/releases/tag/v0.5.0). Use its `SHA256SUMS.txt` to verify the download.
+1. Download the DMG only from the [Ziki GitHub release](https://github.com/Howell5/ziki/releases/tag/v0.6.0). Use its `SHA256SUMS.txt` to verify the download.
 2. Open the DMG and drag Ziki into **Applications**.
 3. If macOS blocks the first launch, try right-clicking Ziki and choosing **Open**.
 4. If it is still blocked, attempt to open it once, then go to **System Settings → Privacy & Security** and choose **Open Anyway** specifically for Ziki. Authenticate and confirm the launch.
@@ -223,7 +223,7 @@ If `fn` also opens the emoji panel, go to **System Settings → Keyboard** and s
 
 ## Distribution status
 
-Open `outputs/Ziki-0.5.0-macOS-arm64.dmg` and drag Ziki into **Applications**. You can then launch it from the Dock, Spotlight, Launchpad, Finder, or menu bar. Clicking the Dock icon again restores the settings window.
+Open `outputs/Ziki-0.6.0-macOS-arm64.dmg` and drag Ziki into **Applications**. You can then launch it from the Dock, Spotlight, Launchpad, Finder, or menu bar. Clicking the Dock icon again restores the settings window.
 
 The project currently uses no-cost distribution. `package-distribution.sh` defaults to the fixed `Sotto Local Development` local signature and **does not notarize the app**. This preserves app identity across updates on the maintainer's Mac. Other Macs do not automatically trust the certificate, so Gatekeeper may warn about an unverified developer.
 
