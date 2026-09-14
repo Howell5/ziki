@@ -6,6 +6,7 @@ struct DictationHistoryView: View {
     @EnvironmentObject private var store: DictationHistoryStore
     @State private var query = ""
     @State private var confirmsClearAll = false
+    @State private var copiedEntryID: UUID?
 
     private var matchingEntries: [DictationHistoryEntry] {
         store.search(query)
@@ -13,22 +14,21 @@ struct DictationHistoryView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
-            header
-
             if let errorMessage = store.errorMessage {
                 Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
-                    .font(.caption)
-                    .foregroundStyle(.orange)
+                    .font(.subheadline)
+                    .foregroundStyle(ZikiTheme.ink)
                     .padding(10)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(.orange.opacity(0.10))
-                    .clipShape(
-                        RoundedRectangle(cornerRadius: 9, style: .continuous)
+                    .background(ZikiTheme.surface)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .stroke(ZikiTheme.line, lineWidth: 1)
                     )
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
             }
 
-            TextField("搜索听写内容", text: $query)
-                .textFieldStyle(.roundedBorder)
+            searchRow
 
             Group {
                 if store.entries.isEmpty {
@@ -49,8 +49,10 @@ struct DictationHistoryView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .padding(28)
-        .navigationTitle("历史")
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .padding(.horizontal, 28)
+        .padding(.bottom, 24)
+        .background(ZikiTheme.paper.ignoresSafeArea())
         .confirmationDialog(
             "清空全部听写历史？",
             isPresented: $confirmsClearAll,
@@ -68,20 +70,39 @@ struct DictationHistoryView: View {
         }
     }
 
-    private var header: some View {
-        HStack(alignment: .top, spacing: 16) {
-            VStack(alignment: .leading, spacing: 5) {
-                Text("历史")
-                    .font(.system(size: 28, weight: .bold, design: .rounded))
-                Text("仅保存在本机，30 天后自动删除。")
-                    .foregroundStyle(.secondary)
-            }
-            Spacer()
+    private var searchRow: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "magnifyingglass")
+                .foregroundStyle(ZikiTheme.ink.opacity(0.58))
+
+            TextField("搜索听写内容", text: $query)
+                .textFieldStyle(.plain)
+                .foregroundStyle(ZikiTheme.ink)
+                .accessibilityIdentifier("dictation-history-search")
+
+            Text(resultCountLabel)
+                .font(.subheadline)
+                .foregroundStyle(ZikiTheme.ink.opacity(0.58))
+                .fixedSize()
+
             Button("清空全部", role: .destructive) {
                 confirmsClearAll = true
             }
+            .buttonStyle(.borderless)
             .disabled(store.entries.isEmpty)
+            .accessibilityIdentifier("dictation-history-clear-all")
         }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 11)
+        .zikiCard()
+    }
+
+    private var resultCountLabel: String {
+        let total = store.entries.count
+        let matching = matchingEntries.count
+        return query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            ? "共 \(total) 条"
+            : "\(matching) / \(total) 条"
     }
 
     private var historyList: some View {
@@ -124,8 +145,20 @@ struct DictationHistoryView: View {
                 Spacer()
                 Button {
                     copy(entry.text)
+                    copiedEntryID = entry.id
+                    Task { @MainActor in
+                        try? await Task.sleep(for: .seconds(1.5))
+                        if copiedEntryID == entry.id {
+                            copiedEntryID = nil
+                        }
+                    }
                 } label: {
-                    Label("复制", systemImage: "doc.on.doc")
+                    Label(
+                        copiedEntryID == entry.id ? "已复制" : "复制",
+                        systemImage: copiedEntryID == entry.id
+                            ? "checkmark"
+                            : "doc.on.doc"
+                    )
                 }
                 Button(role: .destructive) {
                     store.delete(id: entry.id)
@@ -135,9 +168,9 @@ struct DictationHistoryView: View {
             }
             .buttonStyle(.borderless)
         }
-        .padding(14)
-        .background(.quaternary.opacity(0.35))
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .padding(16)
+        .foregroundStyle(ZikiTheme.ink)
+        .zikiCard()
     }
 
     private func emptyState(
@@ -148,12 +181,13 @@ struct DictationHistoryView: View {
         VStack(spacing: 9) {
             Image(systemName: symbol)
                 .font(.system(size: 30))
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(ZikiTheme.ink.opacity(0.35))
             Text(title)
                 .font(.headline)
+                .foregroundStyle(ZikiTheme.ink)
             Text(detail)
                 .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(ZikiTheme.ink.opacity(0.58))
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }

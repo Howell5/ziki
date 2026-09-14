@@ -23,7 +23,9 @@ done
 if [[ -n "${ZIKI_CODESIGN_IDENTITY:-}" ]]; then
     "$SCRIPT_DIR/package-app.sh"
 else
-    "$SCRIPT_DIR/package-dev-app.sh"
+    # The isolated debug bundle is not a distribution candidate.
+    ZIKI_CODESIGN_IDENTITY="Sotto Local Development" \
+        ZIKI_CODESIGN_TIMESTAMP=none "$SCRIPT_DIR/package-app.sh"
 fi
 
 STAGING_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/ziki-distribution.XXXXXX")"

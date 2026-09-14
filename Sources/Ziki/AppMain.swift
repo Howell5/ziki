@@ -10,6 +10,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var fnEventMonitor: FnEventMonitor?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        #if DEBUG
+        // Window-only appearance QA; never change the user's system appearance.
+        if AppEnvironment.isDevelopment && CommandLine.arguments.contains("--ui-dark") {
+            NSApp.appearance = NSAppearance(named: .darkAqua)
+        }
+        #endif
         switch AppPresentationPolicy.activationMode {
         case .regular:
             NSApp.setActivationPolicy(.regular)

@@ -11,12 +11,9 @@ enum AppEnvironment {
     }
 
     static var userDefaults: UserDefaults {
-        guard isDevelopment else { return .standard }
-        guard let defaults = UserDefaults(suiteName: "com.willhong.sotto.dev")
-        else {
-            fatalError("Unable to initialize the isolated Ziki development defaults suite")
-        }
-        return defaults
+        // Both bundles already have distinct identifiers. Adding the running
+        // bundle's own identifier as a suite can return nil on macOS.
+        .standard
     }
 
     static var keychainService: String {

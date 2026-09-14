@@ -9,30 +9,111 @@ struct SettingsRootView: View {
     @EnvironmentObject private var permissions: PermissionCenter
     @EnvironmentObject private var navigation: SettingsNavigationState
 
+    private var selection: SettingsPane { navigation.selection ?? .start }
+
     var body: some View {
-        NavigationSplitView {
-            List(SettingsPane.allCases, selection: $navigation.selection) { pane in
-                Label(pane.rawValue, systemImage: pane.symbol)
-                    .tag(pane)
-            }
-            .navigationSplitViewColumnWidth(min: 152, ideal: 172, max: 190)
-        } detail: {
-            Group {
-                switch navigation.selection ?? .start {
-                case .start: StartSettingsView()
-                case .history: DictationHistoryView()
-                case .speech: SpeechSettingsView()
-                case .providers: ProviderSettingsView()
-                case .privacy: PrivacySettingsView()
-                case .about: AboutSettingsView()
+        HStack(spacing: 0) {
+            sidebar
+            Rectangle().fill(ZikiTheme.line).frame(width: 1)
+            VStack(alignment: .leading, spacing: 0) {
+                VStack(alignment: .leading, spacing: 7) {
+                    Text(selection.heading)
+                        .font(.system(size: 27, weight: .semibold))
+                        .accessibilityAddTraits(.isHeader)
+                    Text(selection.subtitle)
+                        .font(.system(size: 13))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
+                .padding(.horizontal, 28)
+                .padding(.top, 28)
+                .padding(.bottom, 24)
+
+                Group {
+                    switch selection {
+                    case .start: StartSettingsView()
+                    case .history: DictationHistoryView()
+                    case .speech: SpeechSettingsView()
+                    case .providers: ProviderSettingsView()
+                    case .privacy: PrivacySettingsView()
+                    case .about: AboutSettingsView()
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
-        .frame(width: 760, height: 560)
+        .frame(minWidth: 800, minHeight: 580)
+        .foregroundStyle(ZikiTheme.ink)
+        .tint(ZikiTheme.ink)
+        .background(ZikiTheme.paper)
         .task {
             permissions.refresh()
         }
+    }
+
+    private var sidebar: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 10) {
+                ZikiMark(size: 38)
+                Text("Ziki")
+                    .font(.system(size: 25, weight: .medium, design: .serif))
+            }
+            .padding(.horizontal, 10)
+            .padding(.top, 28)
+            .padding(.bottom, 32)
+
+            VStack(spacing: 5) {
+                ForEach(Array(SettingsPane.allCases.enumerated()), id: \.element.id) { index, pane in
+                    Button {
+                        navigation.selection = pane
+                    } label: {
+                        HStack(spacing: 12) {
+                            Image(systemName: pane.symbol)
+                                .font(.system(size: 15, weight: .medium))
+                                .frame(width: 20)
+                            Text(pane.rawValue)
+                                .font(.system(size: 14, weight: selection == pane ? .semibold : .regular))
+                            Spacer(minLength: 0)
+                            if selection == pane {
+                                Circle().fill(ZikiTheme.ink).frame(width: 4, height: 4)
+                            }
+                        }
+                        .padding(.horizontal, 13)
+                        .frame(height: 42)
+                        .contentShape(RoundedRectangle(cornerRadius: 9))
+                        .background(
+                            selection == pane ? ZikiTheme.selection : Color.clear,
+                            in: RoundedRectangle(cornerRadius: 9)
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    .keyboardShortcut(KeyEquivalent(Character(String(index + 1))), modifiers: .command)
+                    .accessibilityIdentifier("settings-\(pane.accessibilityName)")
+                    .accessibilityAddTraits(selection == pane ? .isSelected : [])
+                    .help("\(pane.rawValue) · ⌘\(index + 1)")
+                }
+            }
+            .onMoveCommand { direction in
+                let panes = SettingsPane.allCases
+                guard let index = panes.firstIndex(of: selection) else { return }
+                if direction == .down { navigation.selection = panes[min(index + 1, panes.count - 1)] }
+                if direction == .up { navigation.selection = panes[max(index - 1, 0)] }
+            }
+
+            Spacer(minLength: 24)
+            VStack(alignment: .leading, spacing: 5) {
+                Text("不止听见，更懂你。")
+                    .font(.system(size: 12, weight: .medium))
+                Text("为自然表达而作")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 13)
+            .padding(.bottom, 24)
+        }
+        .padding(.horizontal, 12)
+        .frame(width: 184)
+        .background(ZikiTheme.sidebar)
     }
 }
 
@@ -40,18 +121,38 @@ private struct StartSettingsView: View {
     @EnvironmentObject private var model: AppModel
     @EnvironmentObject private var settings: SettingsStore
     @EnvironmentObject private var permissions: PermissionCenter
+    @EnvironmentObject private var navigation: SettingsNavigationState
+
+    private var isReady: Bool {
+        permissions.microphone == .granted
+            && permissions.accessibility == .granted && model.canStart
+    }
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Ziki. 听懂，再成文。")
-                        .font(.system(size: 30, weight: .bold, design: .rounded))
-                    Text("单击 fn 开始，自然说话，再次单击 fn，把整理后的文字写回原输入框。")
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
+            VStack(alignment: .leading, spacing: 20) {
+                HStack(spacing: 20) {
+                    Text("fn")
+                        .font(.system(size: 28, weight: .medium, design: .rounded))
+                        .frame(width: 68, height: 68)
+                        .background(ZikiTheme.paper, in: RoundedRectangle(cornerRadius: 16))
+                        .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(ZikiTheme.line))
+                    VStack(alignment: .leading, spacing: 7) {
+                        Text("一按，说话。再按，成文。")
+                            .font(.system(size: 19, weight: .medium))
+                        Text("在输入框中单击 fn 开始听写，再按一次完成。\nZiki 整理表达后，写入当前输入位置。")
+                            .font(.system(size: 13))
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer(minLength: 0)
                 }
+                .padding(22)
+                .zikiCard()
 
+                Text("准备好这三件事")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(.secondary)
                 VStack(spacing: 0) {
                     PermissionRow(
                         kind: .microphone,
@@ -63,17 +164,16 @@ private struct StartSettingsView: View {
                     PermissionRow(
                         kind: .accessibility,
                         title: "辅助功能",
-                        detail: "写回原输入框，并识别独立的 fn 按键",
+                        detail: "写入文字，并识别独立的 fn 按键",
                         state: permissions.accessibility
                     )
                 }
                 .padding(.vertical, 4)
-                .background(.quaternary.opacity(0.35))
-                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .zikiCard()
 
                 HStack {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("当前语音服务")
+                        Text("连接百炼")
                             .font(.headline)
                         Text(settings.provider.title)
                             .foregroundStyle(.secondary)
@@ -82,20 +182,27 @@ private struct StartSettingsView: View {
                     Image(systemName: model.canStart ? "checkmark.circle.fill" : "key.horizontal")
                         .foregroundStyle(model.canStart ? Color.green : Color.orange)
                     Text(model.canStart ? "已配置" : "需要完整服务配置")
+                        .font(.caption)
                         .foregroundStyle(.secondary)
+                    Button("配置") { navigation.selection = .providers }
                 }
+                .padding(16)
+                .zikiCard()
 
-                Button("完成设置") {
-                    settings.onboardingComplete = true
+                HStack(spacing: 12) {
+                    Label(isReady ? "已就绪，随时开始表达" : "完成授权与配置，即可开始", systemImage: isReady ? "checkmark.circle" : "circle.dotted")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
+                    Spacer(minLength: 0)
+                    Button(settings.onboardingComplete ? "设置已完成" : "完成设置") {
+                        settings.onboardingComplete = true
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(!isReady || settings.onboardingComplete)
                 }
-                .buttonStyle(.borderedProminent)
-                .disabled(
-                    permissions.microphone != .granted
-                        || permissions.accessibility != .granted
-                        || !model.canStart
-                )
             }
-            .padding(32)
+            .padding(.horizontal, 28)
+            .padding(.bottom, 28)
         }
     }
 }
@@ -229,7 +336,8 @@ private struct SpeechSettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .navigationTitle("语音")
+        .scrollContentBackground(.hidden)
+        .padding(.horizontal, 8)
         .onChange(of: settings.contextEnabled) { _ in
             model.clearDictationContext()
         }
@@ -337,7 +445,8 @@ private struct ProviderSettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .navigationTitle("百炼")
+        .scrollContentBackground(.hidden)
+        .padding(.horizontal, 8)
         .onChange(of: settings.funRegion) { _ in
             model.invalidateConnectionTest()
         }
@@ -444,7 +553,8 @@ private struct PrivacySettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .navigationTitle("隐私")
+        .scrollContentBackground(.hidden)
+        .padding(.horizontal, 8)
     }
 
     private var providerDisclosure: String {
@@ -466,26 +576,63 @@ private struct AboutSettingsView: View {
     @EnvironmentObject private var updater: AppUpdater
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Image(nsImage: NSWorkspace.shared.icon(forFile: Bundle.main.bundlePath))
-                .resizable()
-                .frame(width: 72, height: 72)
-            Text("Ziki")
-                .font(.system(size: 30, weight: .bold, design: .rounded))
-            Text(versionDisplay)
-                .font(.system(.body, design: .monospaced))
-                .textSelection(.enabled)
-                .foregroundStyle(.primary)
-            Text("A focused native voice-to-text tool for macOS.")
-                .foregroundStyle(.secondary)
-            Text("名字取意于子期与知音：不止听见，更懂你的意思。")
-                .foregroundStyle(.secondary)
-            Divider()
-                .padding(.vertical, 4)
-            updateControls
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                HStack(spacing: 22) {
+                    ZikiMark(size: 88)
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Ziki")
+                            .font(.system(size: 40, weight: .medium, design: .serif))
+                        Text("不止听见，更懂你。")
+                            .font(.system(size: 14))
+                            .foregroundStyle(.secondary)
+                        Text(versionDisplay)
+                            .font(.system(size: 11, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                            .textSelection(.enabled)
+                    }
+                    Spacer()
+                }
+                .padding(24)
+                .zikiCard()
+
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("从「知音」而来")
+                        .font(.system(size: 17, weight: .medium))
+                    Text("伯牙抚琴，子期听出了高山与流水。\nZiki 的名字取意于子期，也取意于这份被听懂的默契。")
+                        .font(.system(size: 14))
+                        .lineSpacing(5)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text("让说出口的想法，成为真正想表达的文字。")
+                        .font(.system(size: 13, weight: .medium))
+                }
+                .padding(24)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .zikiCard()
+
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("版本更新")
+                        .font(.system(size: 13, weight: .semibold))
+                    updateControls
+                }
+                .padding(20)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .zikiCard()
+
+                HStack(spacing: 20) {
+                    Link(destination: URL(string: "https://getziki.com")!) {
+                        Label("访问官网", systemImage: "arrow.up.right")
+                    }
+                    Link(destination: URL(string: "https://github.com/Howell5/ziki")!) {
+                        Label("GitHub", systemImage: "chevron.left.forwardslash.chevron.right")
+                    }
+                }
+                .font(.system(size: 12))
+            }
+            .padding(.horizontal, 28)
+            .padding(.bottom, 28)
         }
-        .padding(32)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
     @ViewBuilder
@@ -547,16 +694,6 @@ private struct AboutSettingsView: View {
             commitHash: Bundle.main.object(
                 forInfoDictionaryKey: "ZikiBuildCommit"
             ) as? String
-        )
-    }
-}
-
-private extension Color {
-    init(hex: UInt32) {
-        self.init(
-            red: Double((hex >> 16) & 0xFF) / 255,
-            green: Double((hex >> 8) & 0xFF) / 255,
-            blue: Double(hex & 0xFF) / 255
         )
     }
 }

@@ -24,18 +24,18 @@ struct MenuBarView: View {
         .disabled(primaryActionDisabled)
 
         if model.phase == .listening {
-            Button("Cancel Dictation", role: .cancel) {
+            Button("取消听写", role: .cancel) {
                 model.cancelDictation()
             }
         }
 
-        Button("Copy Last Result") {
+        Button("复制上次结果") {
             model.copyLastResult()
         }
         .keyboardShortcut("c", modifiers: [.command, .shift])
         .disabled(model.lastResult == nil)
 
-        Button("Open History…") {
+        Button("听写历史…") {
             model.openHistory()
         }
 
@@ -53,12 +53,12 @@ struct MenuBarView: View {
             Button("恢复上次由 Ziki 静音的设备") { outputMute.recoverPending() }
         }
 
-        Button("Open Settings…") {
+        Button("设置…") {
             model.openSettings()
         }
         .keyboardShortcut(",", modifiers: .command)
 
-        Button("Quit Ziki") {
+        Button("退出 Ziki") {
             NSApp.terminate(nil)
         }
         .keyboardShortcut("q", modifiers: .command)
@@ -66,25 +66,25 @@ struct MenuBarView: View {
 
     private var statusLine: String {
         switch model.phase {
-        case .idle: "Ready · \(settings.provider.title)"
+        case .idle: "就绪 · \(settings.provider.title)"
         case .listening: DictationOverlayCopy.listening
         case .processing, .polishing: DictationOverlayCopy.thinking
-        case .inserting: "Ready"
-        case .success: "Ready"
-        case .cancelled: "Cancelled"
+        case .inserting: "就绪"
+        case .success: "就绪"
+        case .cancelled: "已取消"
         case let .error(message, _): message
         }
     }
 
     private var actionTitle: String {
         switch model.phase {
-        case .idle: "Start Listening"
-        case .listening: "Finish Dictation"
+        case .idle: "开始听写"
+        case .listening: "完成听写"
         case .processing, .polishing: DictationOverlayCopy.thinking
-        case .inserting: "Start Listening"
-        case .success: "Start Listening"
-        case .cancelled: "Cancelled"
-        case .error: "Unavailable"
+        case .inserting: "开始听写"
+        case .success: "开始听写"
+        case .cancelled: "已取消"
+        case .error: "暂不可用"
         }
     }
 

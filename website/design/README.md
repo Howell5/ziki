@@ -1,8 +1,28 @@
 # Website art sources
 
-Generated with the **built-in imagegen tool** for this website. No CLI provider or stock reference used. The originals are retained here; only resized/compressed exports are served. The native desktop app icon is unchanged.
+The website's visual language is paper and ink: quiet warm ivory space, a
+restrained black brush mark, and sparse ink-wash atmosphere. The files in this
+directory are the retained source images. Website exports may be resized or
+compressed, but the source images are not redrawn in the export step.
+
+## `ziki-ink.png`
+
+This is the shared Ziki identity master. It is a square, opaque warm-ivory
+paper field with one black brush Z: two complementary strokes, a diagonal
+negative-space slit, and restrained feathering at the tips. The native app
+uses this same source, downscaled to `Packaging/Assets/ZikiIcon-1024.png` and
+then exported to the normal macOS icon sizes. The transparent menu-bar
+cutout is documented with the native assets in `Packaging/Assets/README.md`.
+
+Prompt:
+
+> Design an original minimal ink-brush Z logo for Ziki, a contemporary macOS app named after Ziqi and the ancient story of a listener who understands the music. Single square 1024x1024 brand symbol on perfectly opaque warm ivory #f7f6f2. A clearly legible uppercase Z formed by two complementary thick black-ink ribbon brushstrokes, separated by a slim diagonal negative-space slit. Graceful rounded turns, small dry-brush feathering at tips only, solid coherent center, bold silhouette readable at 24px. The two gestures echo each other like resonating strings. Contemporary premium editorial identity, NOT a historical Chinese calligraphy character. Symbol fills 75 percent of canvas, centered with equal padding. No words, no seal, no instruments, no circle, no gradients, no mockup, no other marks. Refined hand-brushed tension rather than messy paint splatter.
 
 ## `ink-landscape.png`
+
+This is a separate website atmosphere source: a restrained contemporary ink-
+wash landscape with the expressive marks grounded in the lower-right half and
+quiet paper space elsewhere.
 
 Prompt:
 
@@ -10,10 +30,9 @@ Prompt:
 
 Export: `cwebp -q 83 design/ink-landscape.png -o public/ink-landscape.webp`.
 
-## `ziki-ink.png`
+The mark exports are made from `ziki-ink.png`, for example:
 
-Prompt:
-
-> Design an original minimal ink-brush Z logo for Ziki, a contemporary macOS app named after Ziqi and the ancient story of a listener who understands the music. Single square 1024x1024 brand symbol on perfectly opaque warm ivory #f7f6f2. A clearly legible uppercase Z formed by two complementary thick black-ink ribbon brushstrokes, separated by a slim diagonal negative-space slit. Graceful rounded turns, small dry-brush feathering at tips only, solid coherent center, bold silhouette readable at 24px. The two gestures echo each other like resonating strings. Contemporary premium editorial identity, NOT a historical Chinese calligraphy character. Symbol fills 75 percent of canvas, centered with equal padding. No words, no seal, no instruments, no circle, no gradients, no mockup, no other marks. Refined hand-brushed tension rather than messy paint splatter.
-
-Exports: `sips -Z 256 design/ziki-ink.png --out public/ziki-mark.png` and `sips -Z 64 design/ziki-ink.png --out public/favicon.png`.
+```sh
+sips -Z 256 design/ziki-ink.png --out public/ziki-mark.png
+sips -Z 64 design/ziki-ink.png --out public/favicon.png
+```

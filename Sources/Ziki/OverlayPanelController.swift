@@ -259,7 +259,7 @@ private struct OverlayView: View {
             .buttonStyle(.plain)
             .contentShape(Circle())
             .accessibilityLabel("完成并转写")
-            .help("完成并写入原输入框")
+            .help("完成并写入当前输入位置")
         case .processing, .polishing:
             ProgressView()
                 .controlSize(.small)
