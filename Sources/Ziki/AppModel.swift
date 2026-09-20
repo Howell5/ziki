@@ -604,6 +604,9 @@ final class AppModel: ObservableObject {
             diagnosticsStore.begin(
                 sessionID: sessionID,
                 providerID: provider.rawValue,
+                asrModel: provider == .funASR
+                    ? BailianRealtimeASRPolicy.model
+                    : nil,
                 regionID: request.funRegion.rawValue,
                 sampleRate: request.configuration.sampleRate,
                 cleanupEnabled: settings.cleanupEnabled

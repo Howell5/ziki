@@ -79,7 +79,7 @@ public enum DictationHistoryPolicy {
     public static func providerTitle(for providerID: String) -> String {
         switch providerID {
         case "fun-asr":
-            BailianRealtimeASRPolicy.displayName
+            "Bailian Realtime ASR"
         case "mimo":
             "MiMo-V2.5-ASR"
         default:

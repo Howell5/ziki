@@ -111,7 +111,7 @@ private func testHistoryPolicySearchesCaseInsensitively() throws {
 private func testHistoryPolicyUsesProviderFallback() throws {
     try expect(
         DictationHistoryPolicy.providerTitle(for: "fun-asr"),
-        equals: "Qwen-Audio 3.0 ASR Flash",
+        equals: "Bailian Realtime ASR",
         "known history provider title"
     )
     try expect(
@@ -1087,6 +1087,7 @@ private func testDiagnosticsStorePersistsAudioAndPipelineStages() throws {
     store.begin(
         sessionID: sessionID,
         providerID: "fun-asr",
+        asrModel: BailianRealtimeASRPolicy.model,
         regionID: "mainland",
         sampleRate: 16_000,
         cleanupEnabled: true
@@ -1131,11 +1132,35 @@ private func testDiagnosticsStorePersistsAudioAndPipelineStages() throws {
     try expect(document.capturedAudioDurationSeconds, equals: 1, "diagnostic duration")
     try expect(document.asrTextAtStop, equals: "原始文本", "diagnostic ASR at stop")
     try expect(document.asrFinalText, equals: "完整原始文本", "diagnostic final ASR")
+    try expect(document.asrModel, equals: BailianRealtimeASRPolicy.model, "diagnostic ASR model")
     try expect(document.qwenCandidateText, equals: "整理文本", "diagnostic Qwen result")
     try expect(document.outcome, equals: "inserted", "diagnostic outcome")
     try expect(document.cleanupPromptVersion, equals: BailianCleanupPolicy.promptVersion, "diagnostic prompt version")
     try expect(document.cleanupContext?.first?.rawTranscript, equals: "P1", "diagnostic request context")
     try expect(String(data: wav[0..<4], encoding: .ascii), equals: "RIFF", "diagnostic WAV")
+}
+
+private func testDiagnosticsDocumentDecodesWithoutASRModel() throws {
+    let json = """
+    {
+      "schemaVersion": 1,
+      "sessionID": "8CA4EB68-F2A2-44E4-BD23-8BC136972090",
+      "startedAt": "1970-01-01T02:46:40Z",
+      "updatedAt": "1970-01-01T02:46:40Z",
+      "providerID": "fun-asr",
+      "regionID": "mainland",
+      "sampleRate": 16000,
+      "cleanupEnabled": true,
+      "events": []
+    }
+    """
+    let decoder = JSONDecoder()
+    decoder.dateDecodingStrategy = .iso8601
+    let document = try decoder.decode(
+        DictationDiagnosticDocument.self,
+        from: Data(json.utf8)
+    )
+    try expect(document.asrModel, equals: nil, "legacy diagnostic ASR model")
 }
 
 private func jsonDictionary(_ data: Data) throws -> [String: Any] {
@@ -2095,6 +2120,10 @@ private enum ZikiCoreTestHarness {
             (
                 "Diagnostics store persists audio and pipeline stages",
                 testDiagnosticsStorePersistsAudioAndPipelineStages
+            ),
+            (
+                "Diagnostics document decodes without ASR model",
+                testDiagnosticsDocumentDecodesWithoutASRModel
             ),
             (
                 "Fun run task message uses duplex PCM16 configuration",
