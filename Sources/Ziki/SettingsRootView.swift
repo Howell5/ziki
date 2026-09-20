@@ -356,11 +356,11 @@ private struct ProviderSettingsView: View {
         Form {
             Section("百炼模型") {
                 LabeledContent("语音识别") {
-                    Text("Fun-ASR Realtime")
+                    Text("Qwen-Audio 3.0 ASR Flash")
                         .foregroundStyle(.secondary)
                 }
                 LabeledContent("文字整理") {
-                    Text("Qwen3.5 Flash")
+                    Text("Qwen3.7 Flash")
                         .foregroundStyle(.secondary)
                 }
                 Picker("区域", selection: $settings.funRegion) {
@@ -484,12 +484,12 @@ private struct ProviderSettingsView: View {
     private var connectionTestStatus: some View {
         switch model.connectionTestState {
         case .idle:
-            Text("测试会真实连接 Fun-ASR，并让 Qwen 整理“6 点改 8 点”的样例；不会启用麦克风。")
+            Text("测试会真实连接 Qwen-Audio 3.0 ASR Flash，并让 Qwen3.7 Flash 整理“6 点改 8 点”的样例；不会启用麦克风。")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .accessibilityIdentifier("fun-asr-connection-test-status")
         case .testing:
-            Label("正在验证 Fun-ASR 和 Qwen3.5 Flash…", systemImage: "network")
+            Label("正在验证 Qwen-Audio 3.0 ASR Flash 和 Qwen3.7 Flash…", systemImage: "network")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .accessibilityIdentifier("fun-asr-connection-test-status")
@@ -559,8 +559,8 @@ private struct PrivacySettingsView: View {
 
     private var providerDisclosure: String {
         settings.cleanupEnabled
-            ? "音频会实时发送到阿里云 Fun-ASR Realtime；转写文字随后发送到同一百炼 Workspace 的 Qwen3.5 Flash 整理。" + (settings.contextEnabled ? "已启用近期上下文：最多 3 轮、合计 8000 字的先前识别与整理文字也会随请求发送，不是只在本地使用。" : "近期上下文已关闭。")
-            : "音频会实时发送到阿里云 Fun-ASR Realtime；文字整理当前已关闭。"
+            ? "音频会实时发送到阿里云 Qwen-Audio 3.0 ASR Flash；转写文字随后发送到同一百炼 Workspace 的 Qwen3.7 Flash 整理。" + (settings.contextEnabled ? "已启用近期上下文：最多 3 轮、合计 8000 字的先前识别与整理文字也会随请求发送，不是只在本地使用。" : "近期上下文已关闭。")
+            : "音频会实时发送到阿里云 Qwen-Audio 3.0 ASR Flash；文字整理当前已关闭。"
     }
 
     private var privacyDisclosure: String {

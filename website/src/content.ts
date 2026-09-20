@@ -1,8 +1,8 @@
 export const release = {
-  version: "0.6.0",
+  version: "0.6.1",
   download:
-    "https://github.com/Howell5/ziki/releases/download/v0.6.0/Ziki-0.6.0-macOS-arm64.dmg",
-  notes: "https://github.com/Howell5/ziki/releases/tag/v0.6.0",
+    "https://github.com/Howell5/ziki/releases/download/v0.6.1/Ziki-0.6.1-macOS-arm64.dmg",
+  notes: "https://github.com/Howell5/ziki/releases/tag/v0.6.1",
   repository: "https://github.com/Howell5/ziki",
 };
 
@@ -150,7 +150,7 @@ export const copy: Record<Language, Copy> = {
       {
         question: "Is everything processed on my Mac?",
         answer:
-          "No. Speech recognition uses Bailian Fun-ASR, and text cleanup uses Qwen in the cloud. Audio and text are sent to the configured provider for processing. Final-text history is stored locally for 30 days. Audio is not saved locally by default; optional diagnostic recordings are retained for 7 days.",
+          "No. Speech recognition uses Bailian Qwen-Audio 3.0 ASR Flash, and text cleanup uses Qwen3.7 Flash in the cloud. Audio and text are sent to the configured provider for processing. Final-text history is stored locally for 30 days. Audio is not saved locally by default; optional diagnostic recordings are retained for 7 days.",
       },
       {
         question: "Does Ziki rewrite everything as a list?",
@@ -173,7 +173,7 @@ export const copy: Record<Language, Copy> = {
     endIntro: "Made for the moments when saying it is easier.",
     setup: "Setup guide",
     notes: "Release notes",
-    preview: "v0.6.0 · Self-signed preview · Not Apple-notarized",
+    preview: "v0.6.1 · Self-signed preview · Not Apple-notarized",
     footer: "Inspired by listening. Built for expression.",
     source: "View source",
   },
@@ -263,7 +263,7 @@ export const copy: Record<Language, Copy> = {
       {
         question: "所有内容都在本地处理吗？",
         answer:
-          "不是。语音识别使用百炼 Fun-ASR，文字整理使用云端千问，音频和文字会发送到配置的服务商处理。最终文字历史保存在本地，保留 30 天；默认不在本地保存音频，开启诊断录音后保留 7 天。",
+          "不是。语音识别使用百炼 Qwen-Audio 3.0 ASR Flash，文字整理使用云端 Qwen3.7 Flash，音频和文字会发送到配置的服务商处理。最终文字历史保存在本地，保留 30 天；默认不在本地保存音频，开启诊断录音后保留 7 天。",
       },
       {
         question: "会把所有内容都改成编号列表吗？",
@@ -286,7 +286,7 @@ export const copy: Record<Language, Copy> = {
     endIntro: "有些时候，说出来，就是更容易。",
     setup: "安装指南",
     notes: "更新说明",
-    preview: "v0.6.0 · 自签名预览版 · 尚未经过 Apple 公证",
+    preview: "v0.6.1 · 自签名预览版 · 尚未经过 Apple 公证",
     footer: "始于倾听，成于表达。",
     source: "查看源码",
   },

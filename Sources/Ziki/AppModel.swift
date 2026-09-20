@@ -292,7 +292,7 @@ final class AppModel: ObservableObject {
         }
         guard settings.provider == .funASR else {
             connectionTestState = .failed(
-                userMessage: "当前仅支持测试 Fun-ASR 实时连接",
+                userMessage: "当前仅支持测试 Qwen ASR 实时连接",
                 diagnostic: "connection-test-unsupported · MiMo requires an audio request"
             )
             return
@@ -488,7 +488,7 @@ final class AppModel: ObservableObject {
                 throw ASRFailure(
                     kind: .transport,
                     providerCode: "connection-test-ended",
-                    message: "Fun-ASR 在返回 task-started 前关闭了连接",
+                    message: "Qwen ASR 在返回 task-started 前关闭了连接",
                     retryable: true
                 )
             }
@@ -498,7 +498,7 @@ final class AppModel: ObservableObject {
                 throw ASRFailure(
                     kind: .transport,
                     providerCode: "connection-test-timeout",
-                    message: "等待 Fun-ASR task-started 超时",
+                    message: "等待 Qwen ASR task-started 超时",
                     retryable: true
                 )
             }
@@ -507,7 +507,7 @@ final class AppModel: ObservableObject {
                 throw ASRFailure(
                     kind: .transport,
                     providerCode: "connection-test-empty",
-                    message: "Fun-ASR 连接测试未返回结果",
+                    message: "Qwen ASR 连接测试未返回结果",
                     retryable: true
                 )
             }

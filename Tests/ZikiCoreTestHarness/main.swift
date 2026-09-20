@@ -111,7 +111,7 @@ private func testHistoryPolicySearchesCaseInsensitively() throws {
 private func testHistoryPolicyUsesProviderFallback() throws {
     try expect(
         DictationHistoryPolicy.providerTitle(for: "fun-asr"),
-        equals: "Fun-ASR Realtime",
+        equals: "Qwen-Audio 3.0 ASR Flash",
         "known history provider title"
     )
     try expect(
@@ -1161,7 +1161,11 @@ private func testFunRunTaskMessageUsesDuplexPCM16Configuration() throws {
 
     try expect(header?["action"] as? String, equals: "run-task", "run task action")
     try expect(header?["streaming"] as? String, equals: "duplex", "duplex mode")
-    try expect(payload?["model"] as? String, equals: "fun-asr-realtime", "Fun model")
+    try expect(
+        payload?["model"] as? String,
+        equals: "qwen-audio-3.0-asr-flash-streaming",
+        "Bailian realtime ASR model"
+    )
     try expect(parameters?["format"] as? String, equals: "pcm", "Fun audio format")
     try expect(parameters?["sample_rate"] as? Int, equals: 16_000, "Fun sample rate")
     try expect(
@@ -1602,17 +1606,17 @@ private func testFunConnectionRouteUsesWorkspaceEndpointAndHeader() throws {
     try expect(
         mainlandRoute?.endpoint.absoluteString,
         equals: "wss://llm-exampleworkspace123.cn-beijing.maas.aliyuncs.com/api-ws/v1/inference",
-        "Fun-ASR mainland workspace endpoint"
+        "Bailian mainland workspace endpoint"
     )
     try expect(
         singaporeRoute?.endpoint.absoluteString,
         equals: "wss://llm-exampleworkspace123.ap-southeast-1.maas.aliyuncs.com/api-ws/v1/inference",
-        "Fun-ASR Singapore workspace endpoint"
+        "Bailian Singapore workspace endpoint"
     )
     try expect(
         mainlandRoute?.workspaceHeaderValue,
         equals: "llm-exampleworkspace123",
-        "Fun-ASR workspace header"
+        "Bailian workspace header"
     )
 }
 
@@ -1629,7 +1633,7 @@ private func testBailianCleanupRouteReusesWorkspaceAndRegion() throws {
     )
     try expect(
         route?.model,
-        equals: "qwen3.5-flash",
+        equals: "qwen3.7-flash-2026-07-15",
         "Bailian cleanup model"
     )
 }
@@ -1650,7 +1654,11 @@ private func testBailianCleanupRequestEncodesContextAwareCleanupPolicy() throws 
     let messages = root["messages"] as? [[String: Any]]
     let systemPrompt = messages?.first?["content"] as? String ?? ""
 
-    try expect(root["model"] as? String, equals: "qwen3.5-flash", "cleanup model")
+    try expect(
+        root["model"] as? String,
+        equals: "qwen3.7-flash-2026-07-15",
+        "cleanup model"
+    )
     try expect(root["enable_thinking"] as? Bool, equals: false, "cleanup thinking mode")
     try expect(root["temperature"] as? Double, equals: 0, "cleanup temperature")
     try expect(
@@ -1880,7 +1888,7 @@ private func testFunConfigurationRequiresWorkspaceHost() throws {
             workspaceInput: ""
         ),
         equals: false,
-        "Fun-ASR configuration without workspace host"
+        "Bailian configuration without workspace host"
     )
 }
 

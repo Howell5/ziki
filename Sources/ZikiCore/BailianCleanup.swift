@@ -2,7 +2,8 @@ import Foundation
 
 public enum BailianCleanupPolicy {
     public static let enabledByDefault = true
-    public static let model = "qwen3.5-flash"
+    public static let model = "qwen3.7-flash-2026-07-15"
+    public static let displayName = "Qwen3.7 Flash"
     public static let maxOutputTokens = 16_384
     public static let promptVersion = "2026-09-07-context-v1"
 }

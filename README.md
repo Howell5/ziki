@@ -6,7 +6,7 @@
 
 Ziki is a focused, native voice-to-text app for macOS. Tap `fn` to start speaking, then tap it again to transcribe, clean up, and paste your words into the field that has keyboard focus when processing finishes.
 
-Download the current Apple Silicon preview from [GitHub Releases](https://github.com/Howell5/ziki/releases/tag/v0.6.0).
+Download the current Apple Silicon preview from [GitHub Releases](https://github.com/Howell5/ziki/releases/tag/v0.6.1).
 
 Visit the [Ziki website](https://getziki.com) or [中文版](https://getziki.com/zh/). Website source and deployment instructions live in [`website/`](website/README.md).
 
@@ -22,8 +22,8 @@ The app focuses on one workflow:
 
 - A standard Dock app that also stays in the menu bar.
 - Tap `fn` to start or finish dictation; press `Esc` to cancel.
-- Real-time recognition with Alibaba Cloud Fun-ASR Realtime.
-- Conservative cleanup with Qwen3.5 Flash, using the same Workspace and API key.
+- Real-time recognition with Alibaba Cloud Qwen-Audio 3.0 ASR Flash (`qwen-audio-3.0-asr-flash-streaming`).
+- Conservative cleanup with Qwen3.7 Flash, pinned to `qwen3.7-flash-2026-07-15` and using the same Workspace and API key.
 - System `⌘V` insertion into the currently focused field, with the result also kept on the clipboard.
 - API keys in macOS Keychain; no recordings saved by default; final dictation text stored locally for 30 days.
 
@@ -33,7 +33,7 @@ Translation, chat, cloud history, and templates are outside the current scope.
 
 Current release packages target Apple Silicon and require macOS 13 or later. The project currently uses a no-cost distribution setup: maintainer builds use a fixed local self-signed certificate, not Apple Developer ID signing or notarization.
 
-1. Download the DMG only from the [Ziki GitHub release](https://github.com/Howell5/ziki/releases/tag/v0.6.0). Use its `SHA256SUMS.txt` to verify the download.
+1. Download the DMG only from the [Ziki GitHub release](https://github.com/Howell5/ziki/releases/tag/v0.6.1). Use its `SHA256SUMS.txt` to verify the download.
 2. Open the DMG and drag Ziki into **Applications**.
 3. If macOS blocks the first launch, try right-clicking Ziki and choosing **Open**.
 4. If it is still blocked, attempt to open it once, then go to **System Settings → Privacy & Security** and choose **Open Anyway** specifically for Ziki. Authenticate and confirm the launch.
@@ -167,7 +167,7 @@ Ziki does not automatically type into secure fields such as password inputs. It 
 
 Open Ziki from the Dock, Spotlight, Launchpad, or menu bar, then select **Bailian** (`百炼`). Some app settings currently use Chinese labels; the labels below help you locate them.
 
-Fun-ASR streams PCM audio and receives recognition results during recording. Once transcription finishes, Qwen3.5 Flash cleans up filler words, repetition, and explicit self-corrections. Both calls share one Bailian configuration.
+Qwen-Audio 3.0 ASR Flash uses the official `qwen-audio-3.0-asr-flash-streaming` model to stream PCM audio and receive recognition results during recording. Once transcription finishes, Qwen3.7 Flash, pinned to `qwen3.7-flash-2026-07-15`, cleans up filler words, repetition, and explicit self-corrections. Both calls share one Bailian configuration.
 
 1. Select the region matching your Alibaba Cloud Model Studio account:
    - Mainland China (Beijing).
@@ -175,7 +175,7 @@ Fun-ASR streams PCM audio and receives recognition results during recording. Onc
 2. Enter your Bailian **Workspace ID**.
 3. Enter the API key for that region.
 4. Click **Save API Key** (`保存 API Key`).
-5. Click **Test Both Models** (`测试两个模型`) to verify Fun-ASR and the cleanup of a sample that corrects a meeting time from 6 to 8.
+5. Click **Test Both Models** (`测试两个模型`) to verify Qwen-Audio 3.0 ASR Flash and Qwen3.7 Flash cleanup with a sample that corrects a meeting time from 6 to 8.
 
 API keys and endpoints from different regions are not interchangeable. If authorization fails, check the region first, then the key.
 
@@ -214,8 +214,8 @@ If `fn` also opens the emoji panel, go to **System Settings → Keyboard** and s
 
 ## Data and privacy
 
-- Audio is sent to Alibaba Cloud Fun-ASR Realtime in your selected region.
-- With cleanup enabled, transcription text is sent to Qwen3.5 Flash in the same Bailian Workspace. With recent context enabled, previous recognized and cleaned-up turns are also sent; they are not used solely on-device.
+- Audio is sent to Alibaba Cloud Qwen-Audio 3.0 ASR Flash in your selected region.
+- With cleanup enabled, transcription text is sent to Qwen3.7 Flash in the same Bailian Workspace. With recent context enabled, previous recognized and cleaned-up turns are also sent; they are not used solely on-device.
 - By default, Ziki does not write recordings, live recognition fragments, or pre-cleanup transcripts to disk. Recent context stays in memory, while final cleaned-up text is stored locally in Application Support for 30 days.
 - History does not contain the target app, window, PID, paste status, or copy status, and is not synced to the cloud.
 - When you explicitly enable diagnostics, WAV audio, recognized and cleaned-up text, cleanup context, and model versions are retained locally for seven days. API keys are not written to diagnostics.
@@ -223,7 +223,7 @@ If `fn` also opens the emoji panel, go to **System Settings → Keyboard** and s
 
 ## Distribution status
 
-Open `outputs/Ziki-0.6.0-macOS-arm64.dmg` and drag Ziki into **Applications**. You can then launch it from the Dock, Spotlight, Launchpad, Finder, or menu bar. Clicking the Dock icon again restores the settings window.
+Open `outputs/Ziki-0.6.1-macOS-arm64.dmg` and drag Ziki into **Applications**. You can then launch it from the Dock, Spotlight, Launchpad, Finder, or menu bar. Clicking the Dock icon again restores the settings window.
 
 The project currently uses no-cost distribution. `package-distribution.sh` defaults to the fixed `Sotto Local Development` local signature and **does not notarize the app**. This preserves app identity across updates on the maintainer's Mac. Other Macs do not automatically trust the certificate, so Gatekeeper may warn about an unverified developer.
 
@@ -250,7 +250,7 @@ Open Ziki again from the Dock or Spotlight. Normally, the settings window and me
 
 Check Accessibility permission and make sure your intended input field has focus when the Thinking overlay disappears. Ziki keeps the result on the clipboard; press `⌘V` to paste it manually.
 
-**Fun-ASR returns an authorization error**
+**Qwen-Audio 3.0 ASR Flash returns an authorization error**
 
 Make sure your account region, the region in settings, and the API key all match the same Model Studio endpoint.
 
