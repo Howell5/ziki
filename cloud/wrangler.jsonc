@@ -11,11 +11,11 @@
   "vars": {
     "ENVIRONMENT": "local", "CLOUD_ENABLED": "false", "AUTH_ENABLED": "false",
     "AUTH_ORIGIN": "http://127.0.0.1:8787",
-    "GOOGLE_CLIENT_ID": "", "DISCORD_CLIENT_ID": "",
+    "GOOGLE_CLIENT_ID": "",
     "EMAIL_LOGIN_ENABLED": "false", "EMAIL_FROM": "login@getziki.com"
   },
   // Set secrets out of band; absent provider credentials keep that login disabled.
-  "secrets": { "required": ["BETTER_AUTH_SECRET", "GOOGLE_CLIENT_SECRET", "DISCORD_CLIENT_SECRET"] },
+  "secrets": { "required": ["BETTER_AUTH_SECRET", "GOOGLE_CLIENT_SECRET"] },
   "send_email": [{ "name": "EMAIL", "allowed_sender_addresses": ["login@getziki.com"], "remote": false }],
   "d1_databases": [{
     "binding": "DB",

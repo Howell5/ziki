@@ -8,7 +8,7 @@ import { accountPage } from "../src/account-page.ts";
 for (const device of [false, true]) {
   for (const enabled of [false, true]) {
     test(`inline script parses: device=${device}, enabled=${enabled}`, async () => {
-      const html = await accountPage({ google: true, discord: true, email: true, enabled, device }).text();
+      const html = await accountPage({ google: true, email: true, enabled, device }).text();
       const script = html.match(/<script nonce="[0-9a-f]+">([\s\S]*?)<\/script>/)?.[1];
       assert.ok(script);
       assert.doesNotThrow(() => new Script(script));

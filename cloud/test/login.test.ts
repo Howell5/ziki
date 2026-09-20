@@ -29,7 +29,7 @@ function fixture() {
 describe("configured identity routes, local provider fixtures only", () => {
   it("keeps unconfigured login unavailable and speech/billing closed even with auth enabled", async () => {
     const f = fixture();
-    expect(loginCapabilities(env)).toEqual({ google: false, discord: false, email: false });
+    expect(loginCapabilities(env)).toEqual({ google: false, email: false });
     for (const path of ["/v1/dictations", "/v1/billing/checkout"]) expect((await f.call(path, {})).status).toBe(503);
     const page = await worker.fetch(new Request(`${origin}/account`), env);
     expect(page.status).toBe(200);
@@ -110,19 +110,31 @@ describe("configured identity routes, local provider fixtures only", () => {
     expect(await response.text()).not.toContain("private-provider-detail");
   });
 
-  it("creates Google/Discord OAuth state redirects locally and refuses external return URLs", async () => {
+  it("creates Google OAuth state redirects locally and refuses external return URLs", async () => {
     const f = fixture();
-    Object.assign(f.config, { GOOGLE_CLIENT_ID: "local-google-client", GOOGLE_CLIENT_SECRET: "local-google-secret",
-      DISCORD_CLIENT_ID: "local-discord-client", DISCORD_CLIENT_SECRET: "local-discord-secret" });
-    for (const provider of ["google", "discord"]) {
-      const response = await f.call("/api/auth/sign-in/social", { provider, callbackURL: "/device" });
-      expect(response.ok).toBe(true);
-      const { url } = await response.json<{ url: string }>();
-      const redirect = new URL(url);
-      expect(redirect.protocol).toBe("https:");
-      expect(redirect.searchParams.get("state")).toBeTruthy();
-      expect(redirect.searchParams.get("redirect_uri")).toBe(`${origin}/api/auth/callback/${provider}`);
-      expect((await f.call("/api/auth/sign-in/social", { provider, callbackURL: "https://evil.example/" })).ok).toBe(false);
+    Object.assign(f.config, { GOOGLE_CLIENT_ID: "local-google-client", GOOGLE_CLIENT_SECRET: "local-google-secret" });
+    const provider = "google";
+    const response = await f.call("/api/auth/sign-in/social", { provider, callbackURL: "/device" });
+    expect(response.ok).toBe(true);
+    const { url } = await response.json<{ url: string }>();
+    const redirect = new URL(url);
+    expect(redirect.protocol).toBe("https:");
+    expect(redirect.hostname).toBe("accounts.google.com");
+    expect(redirect.searchParams.get("state")).toBeTruthy();
+    expect(redirect.searchParams.get("redirect_uri")).toBe(`${origin}/api/auth/callback/${provider}`);
+    expect((await f.call("/api/auth/sign-in/social", { provider, callbackURL: "https://evil.example/" })).ok).toBe(false);
+  });
+
+  it("rejects retired Discord sign-in and callbacks even with legacy credentials", async () => {
+    const f = fixture();
+    Object.assign(f.config, { DISCORD_CLIENT_ID: "legacy-client", DISCORD_CLIENT_SECRET: "legacy-secret" });
+    expect(loginCapabilities(f.config)).toEqual({ google: false, email: true });
+    const response = await f.call("/api/auth/sign-in/social", { provider: "discord", callbackURL: "/device" });
+    expect(response.status).toBe(404);
+    expect(response.headers.get("location")).toBeNull();
+    expect(await response.json()).toMatchObject({ code: "PROVIDER_NOT_FOUND" });
+    for (const body of [undefined, { code: "unused", state: "unused" }]) {
+      expect((await f.call("/api/auth/callback/discord", body)).status).toBe(404);
     }
   });
 

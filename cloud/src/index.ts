@@ -51,7 +51,7 @@ export async function authHandler(request: Request, env: Env): Promise<Response>
   if (origin && origin !== env.AUTH_ORIGIN) return privateResponse(Response.json({ error: "origin_not_allowed" }, { status: 403 }));
   const path = new URL(request.url).pathname.slice("/api/auth".length);
   const native = path === "/device/code" || path === "/device/token";
-  const callback = path === "/callback/google" || path === "/callback/discord";
+  const callback = path === "/callback/google";
   const get = path === "/device" || callback;
   const post = native || path === "/sign-in/social" || path === "/sign-in/email-otp" ||
     path === "/email-otp/send-verification-otp" || path === "/sign-out" ||

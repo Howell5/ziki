@@ -5,19 +5,17 @@ import { claimEmailSend, sendLoginOTP } from "./email";
 
 type LoginOptions = {
   google?: { clientId: string; clientSecret: string };
-  discord?: { clientId: string; clientSecret: string };
   sendOTP?: (email: string, otp: string) => Promise<void>;
   claimOTP?: (email: string) => Promise<void>;
 };
 
 type AuthEnv = Pick<Env, "DB" | "AUTH_ORIGIN" | "BETTER_AUTH_SECRET"> & Partial<Pick<Env,
-  "GOOGLE_CLIENT_ID" | "GOOGLE_CLIENT_SECRET" | "DISCORD_CLIENT_ID" | "DISCORD_CLIENT_SECRET" |
+  "GOOGLE_CLIENT_ID" | "GOOGLE_CLIENT_SECRET" |
   "EMAIL_LOGIN_ENABLED" | "EMAIL" | "EMAIL_FROM">>;
 
 export function loginCapabilities(env: AuthEnv) {
   return {
     google: Boolean(env.GOOGLE_CLIENT_ID?.trim() && env.GOOGLE_CLIENT_SECRET?.trim()),
-    discord: Boolean(env.DISCORD_CLIENT_ID?.trim() && env.DISCORD_CLIENT_SECRET?.trim()),
     email: String(env.EMAIL_LOGIN_ENABLED) === "true" && Boolean(env.EMAIL && env.EMAIL_FROM?.trim()),
   };
 }
@@ -45,7 +43,7 @@ export function authOptions(database: BetterAuthOptions["database"], origin: str
     onAPIError: { errorURL: `${origin}/account` },
     emailAndPassword: { enabled: false },
     // Provider credentials are deliberately not guessed or copied from BYOK.
-    socialProviders: { ...(login.google ? { google: login.google } : {}), ...(login.discord ? { discord: login.discord } : {}) },
+    socialProviders: { ...(login.google ? { google: login.google } : {}) },
     session: { expiresIn: 60 * 60 * 24 * 7, updateAge: 60 * 60 * 24, cookieCache: { enabled: false } },
     account: { accountLinking: { enabled: false } },
     rateLimit: { enabled: true, storage: "database", window: 60, max: 60 },
@@ -92,7 +90,6 @@ export function createAuth(env: AuthEnv) {
   const capabilities = loginCapabilities(env);
   return betterAuth(authOptions(env.DB, env.AUTH_ORIGIN, env.BETTER_AUTH_SECRET, {
     ...(capabilities.google ? { google: { clientId: env.GOOGLE_CLIENT_ID!, clientSecret: env.GOOGLE_CLIENT_SECRET! } } : {}),
-    ...(capabilities.discord ? { discord: { clientId: env.DISCORD_CLIENT_ID!, clientSecret: env.DISCORD_CLIENT_SECRET! } } : {}),
     ...(capabilities.email ? {
       claimOTP: (email: string) => claimEmailSend(env, email),
       sendOTP: (email: string, otp: string) => sendLoginOTP({ EMAIL: env.EMAIL!, EMAIL_FROM: env.EMAIL_FROM! }, email, otp),
