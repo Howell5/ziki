@@ -1,6 +1,5 @@
 export type AccountPageOptions = {
   google: boolean;
-  discord: boolean;
   email: boolean;
   enabled: boolean;
   device: boolean;
@@ -24,16 +23,16 @@ function copy(en: string, zh: string): string {
   return `data-en="${escapeAttribute(en)}" data-zh="${escapeAttribute(zh)}"`;
 }
 
-function providerButton(provider: "google" | "discord", enabled: boolean): string {
-  const label = provider === "google" ? "Google" : "Discord";
-  const zh = provider === "google" ? "Google" : "Discord";
+function providerButton(enabled: boolean): string {
+  const label = "Google";
+  const zh = "Google";
   if (!enabled) {
     return `<button class="provider-button unavailable" type="button" disabled aria-disabled="true">
       <span>${label}</span><span class="button-note" ${copy("Unavailable", "暂不可用")}>Unavailable</span>
     </button>`;
   }
-  return `<button class="provider-button" type="button" data-provider="${provider}">
-    <span class="provider-mark" aria-hidden="true">${provider === "google" ? "G" : "D"}</span>
+  return `<button class="provider-button" type="button" data-provider="google">
+    <span class="provider-mark" aria-hidden="true">G</span>
     <span ${copy(`Continue with ${label}`, `使用 ${zh} 继续`)}>Continue with ${label}</span>
   </button>`;
 }
@@ -47,7 +46,7 @@ function authPanel(options: AccountPageOptions): string {
     </section>`;
   }
 
-  const social = [providerButton("google", options.google), providerButton("discord", options.discord)].join("");
+  const social = providerButton(options.google);
   const email = options.email
     ? `<div class="email-flow">
         <div class="rule"><span ${copy("or use email", "或使用邮箱")}>or use email</span></div>
@@ -378,7 +377,7 @@ function pageMarkup(options: AccountPageOptions, pageNonce: string): string {
         document.querySelectorAll("[data-provider]").forEach((button) => {
           button.addEventListener("click", async () => {
             const provider = button.getAttribute("data-provider");
-            if (provider !== "google" && provider !== "discord") return;
+            if (provider !== "google") return;
             button.disabled = true;
             setAuthStatus(text("Opening secure sign-in…", "正在打开安全登录…"));
             const result = await api("/api/auth/sign-in/social", {

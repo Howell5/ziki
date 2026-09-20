@@ -8,7 +8,7 @@ async function markup(options: Parameters<typeof accountPage>[0]): Promise<{ htm
 
 describe("bounded Ziki account HTML", () => {
   it("returns a nonce-protected, same-origin-only document without external resources", async () => {
-    const { response, html } = await markup({ google: true, discord: true, email: true, enabled: true, device: false });
+    const { response, html } = await markup({ google: true, email: true, enabled: true, device: false });
     const policy = response.headers.get("content-security-policy") || "";
     const nonceMatch = policy.match(/script-src 'nonce-([0-9a-f]+)'/);
 
@@ -30,11 +30,11 @@ describe("bounded Ziki account HTML", () => {
   });
 
   it("renders configured social and email flows with the correct callback", async () => {
-    const { html } = await markup({ google: true, discord: false, email: true, enabled: true, device: false });
+    const { html } = await markup({ google: true, email: true, enabled: true, device: false });
 
     expect(html).toContain('data-provider="google"');
-    expect(html).toContain("Discord");
-    expect(html).toContain("Unavailable");
+    expect(html).not.toContain("Discord");
+    expect(html).not.toContain('data-provider="discord"');
     expect(html).toContain("/api/auth/sign-in/social");
     expect(html).toContain('JSON.stringify({ provider, callbackURL })');
     expect(html).toContain('const callbackURL = isDevicePage ? "/device" : "/account";');
@@ -54,7 +54,7 @@ describe("bounded Ziki account HTML", () => {
   });
 
   it("keeps the disabled state honest and does not expose login controls", async () => {
-    const { html } = await markup({ google: true, discord: true, email: true, enabled: false, device: false });
+    const { html } = await markup({ google: true, email: true, enabled: false, device: false });
 
     expect(html).toContain("Cloud account is not available yet.");
     expect(html).toContain("Hosted dictation is still not available.");
@@ -64,7 +64,7 @@ describe("bounded Ziki account HTML", () => {
   });
 
   it("requires explicit device-code review before approval or denial", async () => {
-    const { html } = await markup({ google: true, discord: true, email: false, enabled: true, device: true });
+    const { html } = await markup({ google: true, email: false, enabled: true, device: true });
 
     expect(html).toContain('id="device-user-code"');
     expect(html).toContain('name="user_code"');
@@ -89,7 +89,7 @@ describe("bounded Ziki account HTML", () => {
   });
 
   it("supports changing email, cooldown-gated resend, and a clean second sign-in", async () => {
-    const { html } = await markup({ google: false, discord: false, email: true, enabled: true, device: false });
+    const { html } = await markup({ google: false, email: true, enabled: true, device: false });
 
     expect(html).toContain('data-change-email');
     expect(html).toContain('data-resend-otp disabled');
@@ -106,7 +106,7 @@ describe("bounded Ziki account HTML", () => {
   });
 
   it("uses DOM textContent for returned account and device values", async () => {
-    const { html } = await markup({ google: false, discord: false, email: true, enabled: true, device: true });
+    const { html } = await markup({ google: false, email: true, enabled: true, device: true });
 
     expect(html).toContain("emailNode.textContent = user.email");
     expect(html).toContain("idNode.textContent = user.id");
