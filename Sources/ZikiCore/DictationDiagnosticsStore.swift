@@ -12,6 +12,7 @@ public struct DictationDiagnosticDocument: Codable, Equatable, Sendable {
     public let startedAt: Date
     public var updatedAt: Date
     public let providerID: String
+    public let asrModel: String?
     public let regionID: String
     public let sampleRate: Int
     public let cleanupEnabled: Bool
@@ -59,6 +60,7 @@ public final class DictationDiagnosticsStore {
     public func begin(
         sessionID: UUID,
         providerID: String,
+        asrModel: String? = nil,
         regionID: String,
         sampleRate: Int,
         cleanupEnabled: Bool
@@ -70,6 +72,7 @@ public final class DictationDiagnosticsStore {
             startedAt: timestamp,
             updatedAt: timestamp,
             providerID: providerID,
+            asrModel: asrModel,
             regionID: regionID,
             sampleRate: sampleRate,
             cleanupEnabled: cleanupEnabled,

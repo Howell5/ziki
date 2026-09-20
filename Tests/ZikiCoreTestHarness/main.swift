@@ -111,7 +111,7 @@ private func testHistoryPolicySearchesCaseInsensitively() throws {
 private func testHistoryPolicyUsesProviderFallback() throws {
     try expect(
         DictationHistoryPolicy.providerTitle(for: "fun-asr"),
-        equals: "Fun-ASR Realtime",
+        equals: "Bailian Realtime ASR",
         "known history provider title"
     )
     try expect(
@@ -1087,6 +1087,7 @@ private func testDiagnosticsStorePersistsAudioAndPipelineStages() throws {
     store.begin(
         sessionID: sessionID,
         providerID: "fun-asr",
+        asrModel: BailianRealtimeASRPolicy.model,
         regionID: "mainland",
         sampleRate: 16_000,
         cleanupEnabled: true
@@ -1131,11 +1132,35 @@ private func testDiagnosticsStorePersistsAudioAndPipelineStages() throws {
     try expect(document.capturedAudioDurationSeconds, equals: 1, "diagnostic duration")
     try expect(document.asrTextAtStop, equals: "原始文本", "diagnostic ASR at stop")
     try expect(document.asrFinalText, equals: "完整原始文本", "diagnostic final ASR")
+    try expect(document.asrModel, equals: BailianRealtimeASRPolicy.model, "diagnostic ASR model")
     try expect(document.qwenCandidateText, equals: "整理文本", "diagnostic Qwen result")
     try expect(document.outcome, equals: "inserted", "diagnostic outcome")
     try expect(document.cleanupPromptVersion, equals: BailianCleanupPolicy.promptVersion, "diagnostic prompt version")
     try expect(document.cleanupContext?.first?.rawTranscript, equals: "P1", "diagnostic request context")
     try expect(String(data: wav[0..<4], encoding: .ascii), equals: "RIFF", "diagnostic WAV")
+}
+
+private func testDiagnosticsDocumentDecodesWithoutASRModel() throws {
+    let json = """
+    {
+      "schemaVersion": 1,
+      "sessionID": "8CA4EB68-F2A2-44E4-BD23-8BC136972090",
+      "startedAt": "1970-01-01T02:46:40Z",
+      "updatedAt": "1970-01-01T02:46:40Z",
+      "providerID": "fun-asr",
+      "regionID": "mainland",
+      "sampleRate": 16000,
+      "cleanupEnabled": true,
+      "events": []
+    }
+    """
+    let decoder = JSONDecoder()
+    decoder.dateDecodingStrategy = .iso8601
+    let document = try decoder.decode(
+        DictationDiagnosticDocument.self,
+        from: Data(json.utf8)
+    )
+    try expect(document.asrModel, equals: nil, "legacy diagnostic ASR model")
 }
 
 private func jsonDictionary(_ data: Data) throws -> [String: Any] {
@@ -1161,7 +1186,11 @@ private func testFunRunTaskMessageUsesDuplexPCM16Configuration() throws {
 
     try expect(header?["action"] as? String, equals: "run-task", "run task action")
     try expect(header?["streaming"] as? String, equals: "duplex", "duplex mode")
-    try expect(payload?["model"] as? String, equals: "fun-asr-realtime", "Fun model")
+    try expect(
+        payload?["model"] as? String,
+        equals: "qwen-audio-3.0-asr-flash-streaming",
+        "Bailian realtime ASR model"
+    )
     try expect(parameters?["format"] as? String, equals: "pcm", "Fun audio format")
     try expect(parameters?["sample_rate"] as? Int, equals: 16_000, "Fun sample rate")
     try expect(
@@ -1602,17 +1631,17 @@ private func testFunConnectionRouteUsesWorkspaceEndpointAndHeader() throws {
     try expect(
         mainlandRoute?.endpoint.absoluteString,
         equals: "wss://llm-exampleworkspace123.cn-beijing.maas.aliyuncs.com/api-ws/v1/inference",
-        "Fun-ASR mainland workspace endpoint"
+        "Bailian mainland workspace endpoint"
     )
     try expect(
         singaporeRoute?.endpoint.absoluteString,
         equals: "wss://llm-exampleworkspace123.ap-southeast-1.maas.aliyuncs.com/api-ws/v1/inference",
-        "Fun-ASR Singapore workspace endpoint"
+        "Bailian Singapore workspace endpoint"
     )
     try expect(
         mainlandRoute?.workspaceHeaderValue,
         equals: "llm-exampleworkspace123",
-        "Fun-ASR workspace header"
+        "Bailian workspace header"
     )
 }
 
@@ -1629,7 +1658,7 @@ private func testBailianCleanupRouteReusesWorkspaceAndRegion() throws {
     )
     try expect(
         route?.model,
-        equals: "qwen3.5-flash",
+        equals: "qwen3.7-flash-2026-07-15",
         "Bailian cleanup model"
     )
 }
@@ -1650,7 +1679,11 @@ private func testBailianCleanupRequestEncodesContextAwareCleanupPolicy() throws 
     let messages = root["messages"] as? [[String: Any]]
     let systemPrompt = messages?.first?["content"] as? String ?? ""
 
-    try expect(root["model"] as? String, equals: "qwen3.5-flash", "cleanup model")
+    try expect(
+        root["model"] as? String,
+        equals: "qwen3.7-flash-2026-07-15",
+        "cleanup model"
+    )
     try expect(root["enable_thinking"] as? Bool, equals: false, "cleanup thinking mode")
     try expect(root["temperature"] as? Double, equals: 0, "cleanup temperature")
     try expect(
@@ -1880,7 +1913,7 @@ private func testFunConfigurationRequiresWorkspaceHost() throws {
             workspaceInput: ""
         ),
         equals: false,
-        "Fun-ASR configuration without workspace host"
+        "Bailian configuration without workspace host"
     )
 }
 
@@ -2087,6 +2120,10 @@ private enum ZikiCoreTestHarness {
             (
                 "Diagnostics store persists audio and pipeline stages",
                 testDiagnosticsStorePersistsAudioAndPipelineStages
+            ),
+            (
+                "Diagnostics document decodes without ASR model",
+                testDiagnosticsDocumentDecodesWithoutASRModel
             ),
             (
                 "Fun run task message uses duplex PCM16 configuration",

@@ -18,6 +18,11 @@ public enum FunASRWireError: Error, Equatable, Sendable {
     case malformedResult
 }
 
+public enum BailianRealtimeASRPolicy {
+    public static let model = "qwen-audio-3.0-asr-flash-streaming"
+    public static let displayName = "Qwen-Audio 3.0 ASR Flash"
+}
+
 public enum FunASRWire {
     public static func makeRunTask(
         taskID: String,
@@ -51,7 +56,7 @@ public enum FunASRWire {
         case "task-failed":
             return .failed(
                 code: envelope.header.errorCode,
-                message: envelope.header.errorMessage ?? "Fun-ASR request failed"
+                message: envelope.header.errorMessage ?? "Qwen ASR request failed"
             )
         case "result-generated":
             guard let sentence = envelope.payload?.output?.sentence else {
@@ -134,7 +139,7 @@ private struct RunTask: Encodable {
         let taskGroup = "audio"
         let task = "asr"
         let function = "recognition"
-        let model = "fun-asr-realtime"
+        let model = BailianRealtimeASRPolicy.model
         let parameters: Parameters
         let input: [String: String] = [:]
 

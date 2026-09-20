@@ -66,10 +66,10 @@ actor FunASRRealtimeSession: ASRSession {
 
     func start(configuration: ASRConfiguration) async throws {
         guard state == .idle else {
-            throw ASRSessionError.invalidState("Fun-ASR 会话已经启动")
+            throw ASRSessionError.invalidState("Qwen ASR 会话已经启动")
         }
         guard !apiKey.isEmpty else {
-            throw ASRSessionError.invalidConfiguration("缺少 Fun-ASR API Key")
+            throw ASRSessionError.invalidConfiguration("缺少百炼 API Key")
         }
         guard configuration.sampleRate > 0 else {
             throw ASRSessionError.invalidConfiguration("采样率必须大于 0")
@@ -123,11 +123,11 @@ actor FunASRRealtimeSession: ASRSession {
         guard !data.isEmpty else { return }
         guard state == .starting || state == .active else {
             throw ASRSessionError.invalidState(
-                "Fun-ASR 当前状态 \(state.rawValue) 不能接收音频"
+                "Qwen ASR 当前状态 \(state.rawValue) 不能接收音频"
             )
         }
         guard !finishRequested else {
-            throw ASRSessionError.invalidState("Fun-ASR 已经开始结束当前会话")
+            throw ASRSessionError.invalidState("Qwen ASR 已经开始结束当前会话")
         }
 
         pendingFrames.append(contentsOf: chunker.append(data))
@@ -143,9 +143,9 @@ actor FunASRRealtimeSession: ASRSession {
         case .cancelled:
             throw CancellationError()
         case .failed:
-            throw ASRSessionError.invalidState("Fun-ASR 会话已经失败")
+            throw ASRSessionError.invalidState("Qwen ASR 会话已经失败")
         case .idle:
-            throw ASRSessionError.invalidState("Fun-ASR 会话尚未启动")
+            throw ASRSessionError.invalidState("Qwen ASR 会话尚未启动")
         }
 
         if !finishRequested {
@@ -309,7 +309,7 @@ actor FunASRRealtimeSession: ASRSession {
         fail(.init(
             kind: .transport,
             providerCode: "task-start-timeout",
-            message: "Fun-ASR 启动超时",
+            message: "Qwen ASR 启动超时",
             retryable: true
         ))
     }
@@ -325,7 +325,7 @@ actor FunASRRealtimeSession: ASRSession {
         guard let socket else {
             fail(.init(
                 kind: .transport,
-                message: "Fun-ASR WebSocket 不可用",
+                message: "Qwen ASR WebSocket 不可用",
                 retryable: true
             ))
             return
@@ -372,21 +372,21 @@ actor FunASRRealtimeSession: ASRSession {
                 return .init(
                     kind: .unauthorized,
                     providerCode: String(statusCode),
-                    message: "Fun-ASR 鉴权失败（HTTP \(statusCode)）",
+                    message: "Qwen ASR 鉴权失败（HTTP \(statusCode)）",
                     retryable: false
                 )
             case 429:
                 return .init(
                     kind: .rateLimited,
                     providerCode: String(statusCode),
-                    message: "Fun-ASR 请求过于频繁",
+                    message: "Qwen ASR 请求过于频繁",
                     retryable: true
                 )
             case 500...599:
                 return .init(
                     kind: .provider,
                     providerCode: String(statusCode),
-                    message: "Fun-ASR 服务暂时不可用（HTTP \(statusCode)）",
+                    message: "Qwen ASR 服务暂时不可用（HTTP \(statusCode)）",
                     retryable: true
                 )
             default:
@@ -403,7 +403,7 @@ actor FunASRRealtimeSession: ASRSession {
         fail(.init(
             kind: .transport,
             providerCode: "task-finish-timeout",
-            message: "Fun-ASR 完成转写超时",
+            message: "Qwen ASR 完成转写超时",
             retryable: true
         ))
     }

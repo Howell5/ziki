@@ -9,7 +9,7 @@ enum SpeechProviderKind: String, CaseIterable, Identifiable, Sendable {
 
     var title: String {
         switch self {
-        case .funASR: "Fun-ASR Realtime"
+        case .funASR: "Qwen-Audio 3.0 ASR Flash"
         case .miMo: "MiMo-V2.5-ASR"
         }
     }

@@ -6,7 +6,7 @@
 
 Ziki 是一个专注于 macOS 的原生语音输入 App：单击 `fn` 开始说话，再次单击 `fn`，把识别并整理后的文本粘贴到完成处理时的系统键盘焦点。
 
-当前 Apple Silicon 测试版可从 [GitHub Releases](https://github.com/Howell5/ziki/releases/tag/v0.6.0) 下载。
+当前 Apple Silicon 测试版可从 [GitHub Releases](https://github.com/Howell5/ziki/releases/tag/v0.6.1) 下载。
 
 访问 [Ziki 中文官网](https://getziki.com/zh/)或 [English](https://getziki.com)。官网源码及开发、预览和部署说明位于 [`website/`](website/README.md)。
 
@@ -22,8 +22,8 @@ Ziki 取意于子期与知音：听懂，再成文。新图标以两道相互呼
 
 - 标准 Dock App，同时在菜单栏常驻
 - `fn` toggle 开始／结束听写，`Esc` 取消
-- 阿里百炼 Fun-ASR Realtime 实时识别
-- 同一 Workspace 与 API Key 调用 Qwen3.5 Flash 做保守整理
+- 阿里百炼 Qwen-Audio 3.0 ASR Flash（`qwen-audio-3.0-asr-flash-streaming`）实时识别
+- 同一 Workspace 与 API Key 调用 Qwen3.7 Flash（固定为 `qwen3.7-flash-2026-07-15`）做保守整理
 - 通过系统 `⌘V` 写入当前键盘焦点；结果同时保留在剪贴板
 - API Key 存在 macOS Keychain；默认不保存录音，最终听写文本只在本机保留 30 天
 
@@ -33,7 +33,7 @@ Ziki 取意于子期与知音：听懂，再成文。新图标以两道相互呼
 
 当前发布包面向 Apple Silicon，支持 macOS 13 及以上版本。项目目前选择零成本分发，因此维护者构建使用固定的本地自签名证书，未经过 Apple Developer ID 签名和公证。
 
-1. 只从 [Ziki GitHub Release](https://github.com/Howell5/ziki/releases/tag/v0.6.0) 下载 DMG；同页的 `SHA256SUMS.txt` 可用于校验文件。
+1. 只从 [Ziki GitHub Release](https://github.com/Howell5/ziki/releases/tag/v0.6.1) 下载 DMG；同页的 `SHA256SUMS.txt` 可用于校验文件。
 2. 打开 DMG，把 Ziki 拖入 **Applications**。
 3. 首次打开如果被 macOS 阻止，先尝试右键 Ziki 并选择 **打开**。
 4. 如果仍被阻止，先触发一次打开，再进入“系统设置 → 隐私与安全性”，只对 Ziki 点击 **仍要打开**，验证本机密码后确认打开。
@@ -167,7 +167,7 @@ Ziki 不会自动写入密码等安全输入框。最终文本会先放入剪贴
 
 从 Dock、Spotlight、Launchpad 或菜单栏打开 Ziki，然后进入 **百炼**。
 
-Fun-ASR 在录音时持续发送 PCM 音频并接收实时结果；Qwen3.5 Flash 在转写完成后处理口头语、重复和明确改口。两次调用共用一套百炼配置。
+Qwen-Audio 3.0 ASR Flash 使用官方 `qwen-audio-3.0-asr-flash-streaming` 模型，在录音时持续发送 PCM 音频并接收实时结果；Qwen3.7 Flash 固定使用 `qwen3.7-flash-2026-07-15`，在转写完成后处理口头语、重复和明确改口。两次调用共用一套百炼配置。
 
 1. 选择与阿里云 Model Studio 账号一致的区域：
    - 中国大陆（北京）
@@ -175,7 +175,7 @@ Fun-ASR 在录音时持续发送 PCM 音频并接收实时结果；Qwen3.5 Flash
 2. 填写百炼 **Workspace ID**；
 3. 填入对应区域的 API Key；
 4. 点击 **保存 API Key**；
-5. 点击 **测试两个模型**，同时验证 Fun-ASR 和“6 点改 8 点”的整理流程。
+5. 点击 **测试两个模型**，同时验证 Qwen-Audio 3.0 ASR Flash 和 Qwen3.7 Flash 的“6 点改 8 点”整理流程。
 
 不同区域的 API Key 和 endpoint 不能混用。如果返回未授权错误，先检查区域，再检查 Key。
 
@@ -214,8 +214,8 @@ Fun-ASR 在录音时持续发送 PCM 音频并接收实时结果；Qwen3.5 Flash
 
 ## 数据与隐私
 
-- 音频发送到所选区域的阿里云 Fun-ASR Realtime。
-- 启用整理时，转写文本会发送到同一百炼 Workspace 的 Qwen3.5 Flash；启用近期上下文时，最近几轮的识别与整理文字也会随请求发送，不是只在本地使用。
+- 音频发送到所选区域的阿里云 Qwen-Audio 3.0 ASR Flash。
+- 启用整理时，转写文本会发送到同一百炼 Workspace 的 Qwen3.7 Flash；启用近期上下文时，最近几轮的识别与整理文字也会随请求发送，不是只在本地使用。
 - 默认情况下，Ziki 不将录音、实时识别片段或整理前原文写入磁盘；近期上下文仅暂存在内存，整理后的最终文本在本机 Application Support 中保存 30 天。
 - 历史不包含目标 App、窗口、PID、粘贴状态或复制状态，也不会同步到云端。
 - 用户主动开启本地诊断后，最近 7 天的 WAV 音频、识别与整理文本、整理上下文与模型版本会保存在本机；API Key 不会写入。
@@ -223,7 +223,7 @@ Fun-ASR 在录音时持续发送 PCM 音频并接收实时结果；Qwen3.5 Flash
 
 ## 分发状态
 
-打开 `outputs/Ziki-0.6.0-macOS-arm64.dmg`，将 Ziki 拖入 **Applications**。之后可以从 Dock、Spotlight、Launchpad、Finder 或菜单栏打开；再次点击 Dock 图标会恢复设置窗口。
+打开 `outputs/Ziki-0.6.1-macOS-arm64.dmg`，将 Ziki 拖入 **Applications**。之后可以从 Dock、Spotlight、Launchpad、Finder 或菜单栏打开；再次点击 Dock 图标会恢复设置窗口。
 
 当前项目选择零成本分发，`package-distribution.sh` 默认使用 `Sotto Local Development` 固定本地签名，**尚未 notarize**。这能让维护者 Mac 在版本更新后保持同一应用身份，但其他 Mac 不会自动信任该证书，Gatekeeper 仍会提示未验证的开发者。
 
@@ -250,7 +250,7 @@ Fun-ASR 在录音时持续发送 PCM 音频并接收实时结果；Qwen3.5 Flash
 
 检查辅助功能权限，并确认 Thinking 消失时光标仍在希望输入的位置。Ziki 已把结果保留在剪贴板，可直接按 `⌘V` 重试。
 
-**Fun-ASR 返回未授权**
+**Qwen-Audio 3.0 ASR Flash 返回未授权**
 
 确认账号区域、设置中的区域和 API Key 属于同一个 Model Studio endpoint。
 
