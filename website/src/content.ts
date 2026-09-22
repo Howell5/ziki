@@ -1,8 +1,8 @@
 export const release = {
-  version: "0.6.1",
+  version: "0.6.2",
   download:
-    "https://github.com/Howell5/ziki/releases/download/v0.6.1/Ziki-0.6.1-macOS-arm64.dmg",
-  notes: "https://github.com/Howell5/ziki/releases/tag/v0.6.1",
+    "https://github.com/Howell5/ziki/releases/download/v0.6.2/Ziki-0.6.2-macOS-arm64.dmg",
+  notes: "https://github.com/Howell5/ziki/releases/tag/v0.6.2",
   repository: "https://github.com/Howell5/ziki",
 };
 
@@ -173,7 +173,7 @@ export const copy: Record<Language, Copy> = {
     endIntro: "Made for the moments when saying it is easier.",
     setup: "Setup guide",
     notes: "Release notes",
-    preview: "v0.6.1 · Self-signed preview · Not Apple-notarized",
+    preview: "v0.6.2 · Self-signed preview · Not Apple-notarized",
     footer: "Inspired by listening. Built for expression.",
     source: "View source",
   },
@@ -286,7 +286,7 @@ export const copy: Record<Language, Copy> = {
     endIntro: "有些时候，说出来，就是更容易。",
     setup: "安装指南",
     notes: "更新说明",
-    preview: "v0.6.1 · 自签名预览版 · 尚未经过 Apple 公证",
+    preview: "v0.6.2 · 自签名预览版 · 尚未经过 Apple 公证",
     footer: "始于倾听，成于表达。",
     source: "查看源码",
   },

@@ -1,3 +1,4 @@
+@preconcurrency import AVFoundation
 import Darwin
 import CoreAudio
 import Foundation
@@ -352,13 +353,33 @@ private func testLiveCaptureRoute() throws {
     )
     if transport == .classicBluetooth {
         try expect(resolved, equals: builtIn, "headset input records the built-in microphone")
-        try expect(resolved?.isEmpty == false, equals: true, "built-in microphone exists")
     } else {
         try expect(resolved, equals: nil, "no headset input means no device override")
+    }
+    if let resolved {
+        try expect(
+            captureDeviceExists(uniqueID: resolved),
+            equals: true,
+            "the chosen device resolves to a real capture device"
+        )
     }
     print(
         "PASS live capture route: transport=\(transport) builtIn=\(builtIn ?? "none") resolved=\(resolved ?? "system default")"
     )
+}
+
+private func captureDeviceExists(uniqueID: String) -> Bool {
+    let devices: [AVCaptureDevice]
+    if #available(macOS 14.0, *) {
+        devices = AVCaptureDevice.DiscoverySession(
+            deviceTypes: [.microphone],
+            mediaType: .audio,
+            position: .unspecified
+        ).devices
+    } else {
+        devices = AVCaptureDevice.devices(for: .audio)
+    }
+    return devices.contains { $0.uniqueID == uniqueID }
 }
 
 @MainActor

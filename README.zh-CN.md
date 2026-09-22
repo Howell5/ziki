@@ -6,7 +6,7 @@
 
 Ziki 是一个专注于 macOS 的原生语音输入 App：单击 `fn` 开始说话，再次单击 `fn`，把识别并整理后的文本粘贴到完成处理时的系统键盘焦点。
 
-当前 Apple Silicon 测试版可从 [GitHub Releases](https://github.com/Howell5/ziki/releases/tag/v0.6.1) 下载。
+当前 Apple Silicon 测试版可从 [GitHub Releases](https://github.com/Howell5/ziki/releases/tag/v0.6.2) 下载。
 
 访问 [Ziki 中文官网](https://getziki.com/zh/)或 [English](https://getziki.com)。官网源码及开发、预览和部署说明位于 [`website/`](website/README.md)。
 
@@ -33,7 +33,7 @@ Ziki 取意于子期与知音：听懂，再成文。新图标以两道相互呼
 
 当前发布包面向 Apple Silicon，支持 macOS 13 及以上版本。项目目前选择零成本分发，因此维护者构建使用固定的本地自签名证书，未经过 Apple Developer ID 签名和公证。
 
-1. 只从 [Ziki GitHub Release](https://github.com/Howell5/ziki/releases/tag/v0.6.1) 下载 DMG；同页的 `SHA256SUMS.txt` 可用于校验文件。
+1. 只从 [Ziki GitHub Release](https://github.com/Howell5/ziki/releases/tag/v0.6.2) 下载 DMG；同页的 `SHA256SUMS.txt` 可用于校验文件。
 2. 打开 DMG，把 Ziki 拖入 **Applications**。
 3. 首次打开如果被 macOS 阻止，先尝试右键 Ziki 并选择 **打开**。
 4. 如果仍被阻止，先触发一次打开，再进入“系统设置 → 隐私与安全性”，只对 Ziki 点击 **仍要打开**，验证本机密码后确认打开。
@@ -202,7 +202,7 @@ Qwen-Audio 3.0 ASR Flash 使用官方 `qwen-audio-3.0-asr-flash-streaming` 模�
 
 设备断开、恢复失败或应用强制退出时，按设备 UID 保留少量恢复记录（不含音频）。重新启动不会擅自开声；连接设备后，可从菜单栏或语音设置点击 **恢复上次由 Ziki 静音的设备**。强制结束进程无法保证即时恢复，可先用系统静音键手动恢复。录制期间主动解除静音后不会被持续强制静音；当前实现按恢复时的静音状态判断，不能区分用户“解除后又重新静音”和原本由 Ziki 设置的静音，因此这种情况下建议关闭自动静音功能。
 
-如果默认输入是经典蓝牙耳机，Ziki 会显示提示但仍正常录音。受蓝牙 HFP 限制，录音期间耳机播放音质会暂时下降；结束或取消听写后，Ziki 会完整释放音频引擎，让系统切回高质量播放。希望听写时音乐也保持高质量，可把系统输入改为 MacBook 麦克风，耳机只作为输出。
+如果默认输入是经典蓝牙耳机，Ziki 会改用 Mac 内建麦克风录音，耳机仅作为输出设备，听写期间播放音质不再下降。
 
 每次有效听写的最终文本会先写入本机历史，再尝试系统粘贴。可从设置侧边栏的 **历史** 或菜单栏 **Open History…** 搜索、复制或删除记录；复制只写入剪贴板，不会替你再次粘贴。历史固定保留 30 天，也可手动清空全部。
 
@@ -223,7 +223,7 @@ Qwen-Audio 3.0 ASR Flash 使用官方 `qwen-audio-3.0-asr-flash-streaming` 模�
 
 ## 分发状态
 
-打开 `outputs/Ziki-0.6.1-macOS-arm64.dmg`，将 Ziki 拖入 **Applications**。之后可以从 Dock、Spotlight、Launchpad、Finder 或菜单栏打开；再次点击 Dock 图标会恢复设置窗口。
+打开 `outputs/Ziki-0.6.2-macOS-arm64.dmg`，将 Ziki 拖入 **Applications**。之后可以从 Dock、Spotlight、Launchpad、Finder 或菜单栏打开；再次点击 Dock 图标会恢复设置窗口。
 
 当前项目选择零成本分发，`package-distribution.sh` 默认使用 `Sotto Local Development` 固定本地签名，**尚未 notarize**。这能让维护者 Mac 在版本更新后保持同一应用身份，但其他 Mac 不会自动信任该证书，Gatekeeper 仍会提示未验证的开发者。
 

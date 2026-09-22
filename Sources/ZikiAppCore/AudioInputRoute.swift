@@ -16,8 +16,12 @@ public enum AudioInputTransportKind: Equatable, Sendable {
 public enum AudioInputRoute {
     /// Device UID to capture from, or nil to keep the system default input.
     public static func captureDeviceUID() -> String? {
-        preferredDeviceUID(
-            defaultInput: defaultInputTransportKind(),
+        let transport = defaultInputTransportKind()
+        // The built-in microphone only matters for a Bluetooth headset, so every other
+        // dictation skips the device scan and any third-party driver it touches.
+        guard transport == .classicBluetooth else { return nil }
+        return preferredDeviceUID(
+            defaultInput: transport,
             builtInMicrophoneUID: builtInMicrophoneUID()
         )
     }

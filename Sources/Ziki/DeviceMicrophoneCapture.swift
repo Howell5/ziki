@@ -16,11 +16,15 @@ final class DeviceMicrophoneCapture: NSObject, @unchecked Sendable {
     enum CaptureError: LocalizedError {
         case deviceUnavailable
         case sessionRejected
+        case deviceStopped
+        case noAudio
 
         var errorDescription: String? {
             switch self {
             case .deviceUnavailable: "找不到内建麦克风"
             case .sessionRejected: "无法打开内建麦克风"
+            case .deviceStopped: "内建麦克风已停止响应"
+            case .noAudio: "内建麦克风没有返回音频"
             }
         }
     }
@@ -32,11 +36,19 @@ final class DeviceMicrophoneCapture: NSObject, @unchecked Sendable {
 
     private let deviceUID: String
     private let sampleQueue = DispatchQueue(label: "com.ziki.audio.device")
+    private let watchdogQueue = DispatchQueue(label: "com.ziki.audio.device.watchdog")
     private let lock = NSLock()
     private var session: AVCaptureSession?
     private var runtimeErrorObserver: NSObjectProtocol?
+    private var watchdog: DispatchWorkItem?
+    private var deliveredBuffer = false
     private var onBuffer: BufferHandler?
     private var onError: ErrorHandler?
+
+    /// A session that starts successfully can still hand back no audio at all (device held
+    /// by another process, driver failure) without raising an error, which would silently
+    /// record nothing. The first buffer normally arrives within a few hundred milliseconds.
+    private static let firstBufferTimeout: TimeInterval = 1.5
 
     init(deviceUID: String) {
         self.deviceUID = deviceUID
@@ -53,7 +65,12 @@ final class DeviceMicrophoneCapture: NSObject, @unchecked Sendable {
         }
 
         let session = AVCaptureSession()
-        let input = try AVCaptureDeviceInput(device: device)
+        let input: AVCaptureDeviceInput
+        do {
+            input = try AVCaptureDeviceInput(device: device)
+        } catch {
+            throw CaptureError.sessionRejected
+        }
         let output = AVCaptureAudioDataOutput()
         output.setSampleBufferDelegate(self, queue: sampleQueue)
 
@@ -74,14 +91,23 @@ final class DeviceMicrophoneCapture: NSObject, @unchecked Sendable {
             let failure = notification.userInfo?[AVCaptureSessionErrorKey] as? NSError
             let detail = failure?.localizedDescription ?? "未知错误"
             Self.logger.error("device microphone stopped: \(detail, privacy: .public)")
-            self?.report(MicrophoneCaptureError.conversionFailed(detail))
+            self?.report(CaptureError.deviceStopped)
         }
 
+        let work = DispatchWorkItem { [weak self] in
+            self?.reportMissingAudio()
+        }
         lock.lock()
+        deliveredBuffer = false
+        watchdog = work
         self.session = session
         runtimeErrorObserver = observer
         lock.unlock()
 
+        watchdogQueue.asyncAfter(
+            deadline: .now() + Self.firstBufferTimeout,
+            execute: work
+        )
         session.startRunning()
     }
 
@@ -89,16 +115,29 @@ final class DeviceMicrophoneCapture: NSObject, @unchecked Sendable {
         lock.lock()
         let session = self.session
         let observer = runtimeErrorObserver
+        let work = watchdog
         self.session = nil
         runtimeErrorObserver = nil
+        watchdog = nil
         onBuffer = nil
         onError = nil
         lock.unlock()
 
+        work?.cancel()
         if let observer {
             NotificationCenter.default.removeObserver(observer)
         }
         session?.stopRunning()
+    }
+
+    private func reportMissingAudio() {
+        lock.lock()
+        let shouldReport = session != nil && !deliveredBuffer
+        let handler = shouldReport ? onError : nil
+        lock.unlock()
+        guard let handler else { return }
+        Self.logger.error("device microphone returned no audio")
+        handler(CaptureError.noAudio)
     }
 
     private func report(_ error: Error) {
@@ -185,6 +224,7 @@ extension DeviceMicrophoneCapture: AVCaptureAudioDataOutputSampleBufferDelegate 
     ) {
         guard let buffer = makeBuffer(from: sampleBuffer) else { return }
         lock.lock()
+        deliveredBuffer = true
         let handler = onBuffer
         lock.unlock()
         handler?(buffer)

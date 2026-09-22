@@ -6,7 +6,7 @@
 
 Ziki is a focused, native voice-to-text app for macOS. Tap `fn` to start speaking, then tap it again to transcribe, clean up, and paste your words into the field that has keyboard focus when processing finishes.
 
-Download the current Apple Silicon preview from [GitHub Releases](https://github.com/Howell5/ziki/releases/tag/v0.6.1).
+Download the current Apple Silicon preview from [GitHub Releases](https://github.com/Howell5/ziki/releases/tag/v0.6.2).
 
 Visit the [Ziki website](https://getziki.com) or [中文版](https://getziki.com/zh/). Website source and deployment instructions live in [`website/`](website/README.md).
 
@@ -33,7 +33,7 @@ Translation, chat, cloud history, and templates are outside the current scope.
 
 Current release packages target Apple Silicon and require macOS 13 or later. The project currently uses a no-cost distribution setup: maintainer builds use a fixed local self-signed certificate, not Apple Developer ID signing or notarization.
 
-1. Download the DMG only from the [Ziki GitHub release](https://github.com/Howell5/ziki/releases/tag/v0.6.1). Use its `SHA256SUMS.txt` to verify the download.
+1. Download the DMG only from the [Ziki GitHub release](https://github.com/Howell5/ziki/releases/tag/v0.6.2). Use its `SHA256SUMS.txt` to verify the download.
 2. Open the DMG and drag Ziki into **Applications**.
 3. If macOS blocks the first launch, try right-clicking Ziki and choosing **Open**.
 4. If it is still blocked, attempt to open it once, then go to **System Settings → Privacy & Security** and choose **Open Anyway** specifically for Ziki. Authenticate and confirm the launch.
@@ -202,7 +202,7 @@ When the default output changes, Ziki mutes the new device before restoring the 
 
 If a device disconnects, restoration fails, or the app is force-quit, Ziki retains a small recovery record keyed by device UID, with no audio. Restarting the app does not automatically unmute devices. After reconnecting a device, choose **Restore devices previously muted by Ziki** (`恢复上次由 Ziki 静音的设备`) in the menu bar or Speech settings. A forced exit cannot guarantee immediate restoration; use the system mute key if necessary. If you manually unmute during recording, Ziki does not keep forcing mute back on. Restoration checks the mute state at the end and cannot distinguish a manual unmute-then-remute from the original Ziki-applied mute; disable automatic muting if this distinction matters for your workflow.
 
-If the default input is a classic Bluetooth headset, Ziki displays a notice but continues recording. Bluetooth HFP can temporarily reduce playback quality while recording. Ziki fully releases the audio engine after dictation ends or is canceled so the system can return to higher-quality playback. To keep high-quality headset playback during dictation, use the MacBook microphone as the system input and the headset only as output.
+If the default input is a classic Bluetooth headset, Ziki records from the Mac's built-in microphone instead, so the headset stays an output-only device and playback quality no longer drops while you dictate.
 
 Every valid final dictation is saved to local history before Ziki attempts to paste it. Use **History** (`历史`) in the settings sidebar or **Open History…** in the menu bar to search, copy, or delete entries. Copying only updates the clipboard; it does not paste again. History is retained for 30 days and can also be cleared manually.
 
@@ -223,7 +223,7 @@ If `fn` also opens the emoji panel, go to **System Settings → Keyboard** and s
 
 ## Distribution status
 
-Open `outputs/Ziki-0.6.1-macOS-arm64.dmg` and drag Ziki into **Applications**. You can then launch it from the Dock, Spotlight, Launchpad, Finder, or menu bar. Clicking the Dock icon again restores the settings window.
+Open `outputs/Ziki-0.6.2-macOS-arm64.dmg` and drag Ziki into **Applications**. You can then launch it from the Dock, Spotlight, Launchpad, Finder, or menu bar. Clicking the Dock icon again restores the settings window.
 
 The project currently uses no-cost distribution. `package-distribution.sh` defaults to the fixed `Sotto Local Development` local signature and **does not notarize the app**. This preserves app identity across updates on the maintainer's Mac. Other Macs do not automatically trust the certificate, so Gatekeeper may warn about an unverified developer.
 
