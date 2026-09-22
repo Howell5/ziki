@@ -59,6 +59,10 @@ final class MicrophoneCapture: @unchecked Sendable {
     private let lock = NSLock()
     private var engine: AVAudioEngine?
     private var inputTapInstalled = false
+    private var deviceCapture: DeviceMicrophoneCapture?
+    /// Resolved once per recording so a mid-recording route change cannot move
+    /// capture onto a headset microphone.
+    private var captureDeviceUID: String?
     private var converter: AVAudioConverter?
     private var outputFormat: AVAudioFormat?
     private var capturedPCM = Data()
@@ -81,6 +85,9 @@ final class MicrophoneCapture: @unchecked Sendable {
         onLevel: @escaping LevelCallback,
         onError: @escaping ErrorCallback
     ) throws {
+        // Resolved before locking: CoreAudio device queries must not run while the
+        // capture callback thread waits on this lock.
+        let selectedDeviceUID = AudioInputRoute.captureDeviceUID()
         lock.lock()
         guard !isRunning else {
             lock.unlock()
@@ -92,6 +99,7 @@ final class MicrophoneCapture: @unchecked Sendable {
         self.onPCM = onPCM
         self.onLevel = onLevel
         self.onError = onError
+        captureDeviceUID = selectedDeviceUID
         lock.unlock()
 
         processingQueue.sync {
@@ -104,7 +112,7 @@ final class MicrophoneCapture: @unchecked Sendable {
                 return MicrophoneCaptureError.unavailable
             }
             do {
-                try createAndStartEngine(generation: generation)
+                try startCapture(generation: generation)
                 _ = lifecycle.handle(.engineStarted)
                 return nil
             } catch {
@@ -165,32 +173,44 @@ final class MicrophoneCapture: @unchecked Sendable {
         return data
     }
 
-    private func createAndStartEngine(generation: Int) throws {
+    private func startCapture(generation: Int) throws {
         guard isActive(generation: generation) else {
             throw CancellationError()
         }
 
+        guard let captureDeviceUID else {
+            try startEngineCapture(generation: generation)
+            return
+        }
+
+        // A chosen device carries its own sample rate, so the converter is built
+        // from the first captured buffer instead of the engine's input format.
+        let capture = DeviceMicrophoneCapture(deviceUID: captureDeviceUID)
+        try capture.start(
+            onBuffer: { [weak self] buffer in
+                self?.receiveTap(buffer)
+            },
+            onError: { [weak self] error in
+                self?.callbackSnapshot().error?(error)
+            }
+        )
+        deviceCapture = capture
+    }
+
+    private func startEngineCapture(generation: Int) throws {
         let nextEngine = AVAudioEngine()
         let input = nextEngine.inputNode
         let inputFormat = input.outputFormat(forBus: 0)
         guard inputFormat.channelCount > 0, inputFormat.sampleRate > 0 else {
             throw MicrophoneCaptureError.unavailable
         }
-        guard let outputFormat = AVAudioFormat(
-            commonFormat: .pcmFormatInt16,
-            sampleRate: 16_000,
-            channels: 1,
-            interleaved: false
-        ), let converter = AVAudioConverter(
-            from: inputFormat,
-            to: outputFormat
-        ) else {
+        guard let prepared = Self.makeConverter(from: inputFormat) else {
             throw MicrophoneCaptureError.conversionUnavailable
         }
 
         processingQueue.sync {
-            self.outputFormat = outputFormat
-            self.converter = converter
+            self.outputFormat = prepared.outputFormat
+            self.converter = prepared.converter
         }
 
         let observer = NotificationCenter.default.addObserver(
@@ -299,7 +319,7 @@ final class MicrophoneCapture: @unchecked Sendable {
             }
 
             do {
-                try self.createAndStartEngine(generation: generation)
+                try self.startCapture(generation: generation)
                 self.lastRestartError = nil
                 self.executeLifecycleActions(
                     self.lifecycle.handle(.restartSucceeded),
@@ -326,6 +346,11 @@ final class MicrophoneCapture: @unchecked Sendable {
     }
 
     private func releaseEngine() {
+        if let deviceCapture {
+            deviceCapture.stop()
+            self.deviceCapture = nil
+        }
+
         if let observer = configurationObserver {
             NotificationCenter.default.removeObserver(observer)
             configurationObserver = nil
@@ -375,6 +400,15 @@ final class MicrophoneCapture: @unchecked Sendable {
     }
 
     private func convert(_ input: AVAudioPCMBuffer) {
+        if converter == nil || outputFormat == nil {
+            // A device capture reports its format with the first buffer.
+            guard let prepared = Self.makeConverter(from: input.format) else {
+                callbackSnapshot().error?(MicrophoneCaptureError.conversionUnavailable)
+                return
+            }
+            converter = prepared.converter
+            outputFormat = prepared.outputFormat
+        }
         guard let converter, let outputFormat else { return }
         let ratio = outputFormat.sampleRate / input.format.sampleRate
         let capacity = AVAudioFrameCount(ceil(Double(input.frameLength) * ratio)) + 32
@@ -480,6 +514,21 @@ final class MicrophoneCapture: @unchecked Sendable {
             memcpy(destinationData, sourceData, Int(source.mDataByteSize))
         }
         return copy
+    }
+
+    private static func makeConverter(
+        from inputFormat: AVAudioFormat
+    ) -> (converter: AVAudioConverter, outputFormat: AVAudioFormat)? {
+        guard let outputFormat = AVAudioFormat(
+            commonFormat: .pcmFormatInt16,
+            sampleRate: 16_000,
+            channels: 1,
+            interleaved: false
+        ), let converter = AVAudioConverter(
+            from: inputFormat,
+            to: outputFormat
+        ) else { return nil }
+        return (converter, outputFormat)
     }
 
     private func callbackSnapshot() -> (

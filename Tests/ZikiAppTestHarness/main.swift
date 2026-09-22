@@ -309,16 +309,55 @@ private func testAudioRecoveryReportsOnlyAfterRetriesExhausted() throws {
     )
 }
 
-private func testBluetoothInputShowsNonBlockingNotice() throws {
+private func testBluetoothHeadsetRecordsFromBuiltInMicrophone() throws {
     try expect(
-        BluetoothInputNotice.resolve(for: .classicBluetooth),
-        equals: "蓝牙麦克风会暂时降低耳机播放音质",
-        "classic Bluetooth input notice"
+        AudioInputRoute.preferredDeviceUID(
+            defaultInput: .classicBluetooth,
+            builtInMicrophoneUID: "BuiltInMicrophoneDevice"
+        ),
+        equals: "BuiltInMicrophoneDevice",
+        "Bluetooth headset input records the Mac's own microphone"
     )
     try expect(
-        BluetoothInputNotice.resolve(for: .builtInOrWired),
+        AudioInputRoute.preferredDeviceUID(
+            defaultInput: .classicBluetooth,
+            builtInMicrophoneUID: nil
+        ),
         equals: nil,
-        "non-Bluetooth input notice"
+        "headset input without a built-in microphone keeps the system default"
+    )
+    try expect(
+        AudioInputRoute.preferredDeviceUID(
+            defaultInput: .builtInOrWired,
+            builtInMicrophoneUID: "BuiltInMicrophoneDevice"
+        ),
+        equals: nil,
+        "built-in and wired inputs keep the system default"
+    )
+}
+
+/// Opt-in hardware check: reports the live input route and asserts the policy holds.
+@MainActor
+private func testLiveCaptureRoute() throws {
+    let transport = AudioInputRoute.defaultInputTransportKind()
+    let builtIn = AudioInputRoute.builtInMicrophoneUID()
+    let resolved = AudioInputRoute.captureDeviceUID()
+    try expect(
+        resolved,
+        equals: AudioInputRoute.preferredDeviceUID(
+            defaultInput: transport,
+            builtInMicrophoneUID: builtIn
+        ),
+        "live route follows the policy"
+    )
+    if transport == .classicBluetooth {
+        try expect(resolved, equals: builtIn, "headset input records the built-in microphone")
+        try expect(resolved?.isEmpty == false, equals: true, "built-in microphone exists")
+    } else {
+        try expect(resolved, equals: nil, "no headset input means no device override")
+    }
+    print(
+        "PASS live capture route: transport=\(transport) builtIn=\(builtIn ?? "none") resolved=\(resolved ?? "system default")"
     )
 }
 
@@ -474,6 +513,11 @@ private enum ZikiAppTestHarness {
             do { try testLiveOutputMute() } catch { print("FAIL live output mute: \(error)"); exit(1) }
             return
         }
+
+        if CommandLine.arguments.contains("--live-capture-route") {
+            do { try testLiveCaptureRoute() } catch { print("FAIL live capture route: \(error)"); exit(1) }
+            return
+        }
         let tests: [(String, @MainActor () async throws -> Void)] = [
             ("Recording mute ordering and failure cleanup", testRecordingMuteOrderingAndFailureCleanup),
             ("Recording mute preserves user state and disabled mode", testRecordingMutePreservesUserStateAndDisabledMode),
@@ -516,8 +560,8 @@ private enum ZikiAppTestHarness {
                 testAudioRecoveryReportsOnlyAfterRetriesExhausted
             ),
             (
-                "Bluetooth input shows non-blocking notice",
-                testBluetoothInputShowsNonBlockingNotice
+                "Bluetooth headset records from the built-in microphone",
+                testBluetoothHeadsetRecordsFromBuiltInMicrophone
             )
         ]
         var failures = 0

@@ -580,9 +580,6 @@ final class AppModel: ObservableObject {
         dictationContext.prepare(
             applicationID: applicationID == Bundle.main.bundleIdentifier ? nil : applicationID
         )
-        audioInputNotice = BluetoothInputNotice.resolve(
-            for: DefaultAudioInput.transportKind()
-        )
         let provider = settings.provider
         let request = CaptureRequest(
             provider: provider,
@@ -643,7 +640,7 @@ final class AppModel: ObservableObject {
                 )
             }
             if let notice = outputMute.notice {
-                audioInputNotice = [audioInputNotice, notice].compactMap { $0 }.joined(separator: " · ")
+                audioInputNotice = notice
             }
             if diagnosticSessionID == sessionID {
                 diagnosticsStore.recordStage(
