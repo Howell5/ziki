@@ -28,9 +28,16 @@ npm run types
 npm run check
 npm test
 npm run test:page-script
+npm run test:proxy
 npm run migrate:local
 npm run dev
 ```
+
+If Google is reachable only through your HTTP(S) proxy, use `npm run dev:proxy` instead of `npm run dev`. It uses the existing `HTTP_PROXY` / `HTTPS_PROXY` / `NO_PROXY` environment variables with Node 24's proxy-aware HTTP transport; keep `127.0.0.1,localhost,::1` in `NO_PROXY`. It uses the same ignored credentials and local D1 state, binds only to loopback, and does not change deployed Workers. Ordinary outbound HTTP requests fail after 15 seconds rather than leaving OAuth callbacks pending. WebSocket upgrades retain Miniflare's direct connection behavior and require separate speech connectivity verification. The plain Wrangler CLI's proxy notice covers its Node requests, not workerd's outbound sockets.
+
+If Google consent appears stuck, check the first callback request before refreshing: Better Auth consumes OAuth state before exchanging the code, so replaying that callback can report `state_mismatch` and hide the original network failure. Start a fresh sign-in after fixing connectivity; do not disable the state check.
+
+`npm run test:proxy` uses a local fixture proxy and workerd to check POST forwarding, manual redirects, sanitized connection failures and direct WebSocket echo. It does not contact Google or load personal credentials.
 
 `npm run build` is a Workers dry run, **not a deployment**. The zero database UUID is local-only. Do not deploy this config or create a production database from it. A separate staging config and credentials are required after the external decisions in [the execution plan](../docs/cloud-mvp-plan.md).
 

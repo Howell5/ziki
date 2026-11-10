@@ -4,10 +4,12 @@
   "type": "module",
   "scripts": {
     "dev": "wrangler dev --local --ip 127.0.0.1",
+    "dev:proxy": "node --use-env-proxy scripts/dev-proxy.mjs",
     "types": "wrangler types --include-runtime false",
     "check": "tsc --noEmit",
     "test": "vitest run",
     "test:page-script": "node --test test/page-script.node.mjs",
+    "test:proxy": "node --use-env-proxy --test test/dev-proxy.node.mjs",
     "migrate:local": "wrangler d1 migrations apply DB --local",
     "build": "wrangler deploy --dry-run --outdir dist"
   },
