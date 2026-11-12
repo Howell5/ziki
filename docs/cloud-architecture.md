@@ -74,3 +74,20 @@ Stripe Checkout + Billing + Customer Portal；英国商户、USD Price，服务�
 `AUTH_ENABLED` 与语音计费开关分离：允许在隔离环境单独验收身份，不能因此开启未验证的语音或支付。账号和设备页与认证同源，浏览器只用 HttpOnly cookie，只有原生设备 token 端点下发 bearer。公开认证路由使用白名单，不暴露密码、任意邮箱验证、账号链接等未设计能力；设备确认需要已验证邮箱，且用户必须主动输入、核对并批准代码。
 
 调试、测试频率、发布门槛见 [测试方案](cloud-validation.md)。
+
+## P2 实时协议实施约定（2026-11-12，本地验收通过，staging 待验证）
+
+仅在独立 AUTH_ENABLED / CLOUD_ENABLED 及供应商配置全部满足时提供以下接口；支付仍关闭。所有接口必须验证 bearer 会话、已验证邮箱和明确外部 Origin，禁止凭 URL token 或客户端 userId 授权。
+
+2026-11-12 按用户要求，托管识别和整理固定使用北京工作空间域名 `{WorkspaceId}.cn-beijing.maas.aliyuncs.com`，复用已认证通过的独立 Key/Workspace。客户端 Cloud 地区说明与诊断同步为北京；BYOK 仍使用用户原有区域选择。上游请求使用 Workers 支持的 `redirect: "manual"` 并按状态码拒绝重定向；识别完成后的连接关闭不能中断正在进行的整理和结算。
+
+- `POST /v1/dictations`，JSON `{idempotencyKey, maxSeconds}`。客户端每轮生成一次 UUID；maxSeconds 为 1–300。服务端按可用额度缩短预留，返回 `{id, maxSeconds, status}`。重放必须返回原会话，不能再预留或调用模型。
+- `GET /v1/dictations/:id` 返回该账号会话状态，不返回正文。`POST /v1/dictations/:id/cancel` 取消并释放未消费预留。
+- `GET /v1/dictations/:id/stream` 升级 WebSocket，Authorization 头鉴权。一个会话只允许一次 provider claim。
+- 首条 JSON `{type:"start", language:"auto"|"zh"|"en", cleanupEnabled:boolean, context:[{rawTranscript,polishedTranscript}]}`；上下文最多 3 轮、合计 8000 字。随后 binary 为 16 kHz、mono、PCM16 little endian；每帧最多 32000 bytes、偶数字节。音频总量由预留秒数和服务端真实字节数限制。
+- 客户端结束发 `{type:"finish"}`，取消发 `{type:"cancel"}` 或关闭连接。服务端设置启动、录音、结束和整理超时，避免挂起占额；所有取消/关闭/失败路径终止供应商调用并释放预留。
+- 服务端事件：`{type:"ready"}`、`{type:"hypothesis",text}`、`{type:"segmentFinal",text}`、`{type:"completed",text,rawText,billedSeconds,cleanupFailed}`、`{type:"error",code}`。错误码不包含供应商原始错误或凭据。completed 只在成功结算后发送。整理关闭或失败时 text 为 rawText；空识别不收费。partial success 暂按识别音频秒数结算，仅供隔离验收，不代表已批准的商业计费政策。
+- 限额到达时客户端停止录音并完成已有音频，不丢弃结果；服务端独立执行字节上限，不信任客户端时长。断线不自动重跑模型，可查询状态；正文仅保留会话内存，不写数据库或日志。
+- 原生端 Cloud 是明确选择的独立服务模式，默认 BYOK。Cloud 不调用本机个人模型 Key，Cloud 的整理只在服务端进行一次；已有历史、上下文、静音和焦点粘贴仍复用。
+
+跨 Worker 实例的 REST cancel 以 D1 条件状态转换为准。活跃转发每 1 秒检查会话状态，单次检查最多等 2 秒；读取失败或超时即停止上游并拒绝继续处理。正常网络下远端取消约 1 秒被观察到，故障时在该检查超时后关闭；本连接 cancel/close 直接停止上游。结算的条件更新仍为最后一道保护，取消胜出后不能收费或发送 completed。此有界取消延迟是 P2 的明确限制，需要针对性测试，不引入额外协调服务。

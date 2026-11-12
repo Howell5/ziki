@@ -40,6 +40,7 @@ enum FunRegion: String, CaseIterable, Identifiable, Sendable {
 final class SettingsStore: ObservableObject {
     private enum Key {
         static let provider = "speechProvider"
+        static let useCloud = "useCloud"
         static let funRegion = "funRegion"
         static let funWorkspaceID = "funWorkspaceID"
         static let language = "asrLanguage"
@@ -52,6 +53,10 @@ final class SettingsStore: ObservableObject {
     }
 
     private let defaults: UserDefaults
+
+    @Published var useCloud: Bool {
+        didSet { defaults.set(useCloud, forKey: Key.useCloud) }
+    }
 
     @Published var provider: SpeechProviderKind {
         didSet { defaults.set(provider.rawValue, forKey: Key.provider) }
@@ -95,6 +100,7 @@ final class SettingsStore: ObservableObject {
 
     init(defaults: UserDefaults = AppEnvironment.userDefaults) {
         self.defaults = defaults
+        useCloud = defaults.bool(forKey: Key.useCloud)
         provider = .funASR
         funRegion = FunRegion(
             rawValue: defaults.string(forKey: Key.funRegion) ?? ""

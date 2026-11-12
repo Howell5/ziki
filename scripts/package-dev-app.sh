@@ -74,6 +74,9 @@ trap 'rm -rf -- "$STAGING_ROOT"' EXIT
 mkdir -p "$STAGED_APP/Contents/MacOS" "$STAGED_APP/Contents/Resources"
 install -m 0755 "$BINARY" "$STAGED_APP/Contents/MacOS/Ziki"
 install -m 0644 "$INFO_PLIST" "$STAGED_APP/Contents/Info.plist"
+if [[ -n "${ZIKI_CLOUD_ORIGIN:-}" ]]; then
+    plutil -insert ZikiCloudOrigin -string "$ZIKI_CLOUD_ORIGIN" "$STAGED_APP/Contents/Info.plist"
+fi
 install -m 0644 "$ASSETS_DIR/AppIcon.icns" \
     "$STAGED_APP/Contents/Resources/AppIcon.icns"
 install -m 0644 "$ASSETS_DIR/ZikiMenuBarTemplate.png" \

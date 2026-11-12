@@ -87,6 +87,32 @@ export class Ledger {
     return row;
   }
 
+  /** Short-balance reservation uses the same atomic allocator; replay precedes balance lookup. */
+  async reserveUpTo(userId: string, key: string, maximum: number, now: number): Promise<Dictation> {
+    identifier(userId); identifier(key); integer(maximum, 1, 300); integer(now, 0);
+    const replay = await this.db.prepare("SELECT * FROM dictations WHERE user_id=? AND idempotency_key=?")
+      .bind(userId,key).first<Dictation>();
+    if (replay) return replay;
+    await this.expire(userId, now);
+    // Try the largest fundable duration including the grant's deadline coverage.
+    const row = await this.db.prepare(`WITH RECURSIVE durations(n) AS (
+      SELECT ? UNION ALL SELECT n-1 FROM durations WHERE n>1
+    ) SELECT MAX(n) AS seconds FROM durations WHERE n <= (
+      SELECT COALESCE(SUM(available),0) FROM grant_balances
+      WHERE user_id=? AND starts_at<=? AND expires_at>=?+n+120 AND revoked_at IS NULL
+    )`).bind(maximum,userId,now,now).first<{ seconds: number | null }>();
+    try {
+      if (!row?.seconds) throw new LedgerError("unavailable");
+      return await this.reserve(userId,key,row.seconds,now);
+    } catch (error) {
+      // A concurrent same-key reservation may have won after the initial read.
+      const winner = await this.db.prepare("SELECT * FROM dictations WHERE user_id=? AND idempotency_key=?")
+        .bind(userId,key).first<Dictation>();
+      if (winner) return winner;
+      throw error;
+    }
+  }
+
   async get(userId: string, id: string): Promise<Dictation> {
     identifier(userId); identifier(id);
     const row = await this.db.prepare("SELECT * FROM dictations WHERE id=? AND user_id=?").bind(id,userId).first<Dictation>();

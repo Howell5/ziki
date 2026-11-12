@@ -3,6 +3,7 @@ import Security
 
 actor KeychainStore {
     enum Credential: String, Hashable, Sendable {
+        case cloudSession = "cloud-device-session"
         case funASR = "fun-asr-api-key"
         case miMo = "mimo-api-key"
     }

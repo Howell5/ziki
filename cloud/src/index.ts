@@ -1,15 +1,16 @@
+import { cloudEnabled, dictations } from "./dictations";
 import { createAuth, loginCapabilities } from "./auth";
 import { accountPage } from "./account-page";
 import { Ledger } from "./ledger";
 import { boundedRequest, HttpError, privateResponse } from "./http";
 
 export default {
-  async fetch(request, env): Promise<Response> {
+  async fetch(request: Request, env: Env, ctx?: ExecutionContext): Promise<Response> {
     try {
       const path = new URL(request.url).pathname;
       if (request.method === "GET" && path === "/health") {
         await env.DB.prepare("SELECT 1").first();
-        return privateResponse(Response.json({ service: "ziki-cloud", environment: env.ENVIRONMENT, cloudEnabled: false }));
+        return privateResponse(Response.json({ service: "ziki-cloud", environment: env.ENVIRONMENT, cloudEnabled: cloudEnabled(env) }));
       }
       const enabled = String(env.AUTH_ENABLED) === "true" && Boolean(env.BETTER_AUTH_SECRET?.length >= 32);
       const capabilities = loginCapabilities(env);
@@ -20,9 +21,10 @@ export default {
         // Only the canonical authority may receive session-bearing requests.
         if (new URL(request.url).origin !== env.AUTH_ORIGIN) throw new HttpError("origin_not_allowed", 403);
         if (path.startsWith("/api/auth/")) return await authHandler(request, env);
+        if (path === "/v1/dictations" || path.startsWith("/v1/dictations/")) return await dictations(request, env, undefined, work => ctx?.waitUntil(work));
         if (path === "/v1/me") return await authenticatedAccount(request, env);
       }
-      // Identity can be tested independently; no flag exposes unvalidated speech or billing.
+      // Identity remains independently testable; billing has no public route.
       throw new HttpError("cloud_not_configured", 503);
     } catch (error) {
       const known = error instanceof HttpError;

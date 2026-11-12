@@ -173,9 +173,9 @@ private struct StartSettingsView: View {
 
                 HStack {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("连接百炼")
+                        Text("选择语音服务")
                             .font(.headline)
-                        Text(settings.provider.title)
+                        Text(model.providerSummary)
                             .foregroundStyle(.secondary)
                     }
                     Spacer()
@@ -354,6 +354,17 @@ private struct ProviderSettingsView: View {
 
     var body: some View {
         Form {
+            Section("Speech service") {
+                Picker("Use", selection: $settings.useCloud) {
+                    Text("My API key (BYOK)").tag(false)
+                    Text("Ziki Cloud").tag(true)
+                }.disabled(model.phase != .idle)
+                Text(settings.useCloud ? "Audio and bounded context are processed by Ziki Cloud. Your personal API key is not used." : "Connect directly using your own provider account.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            CloudAccountSettingsView(account: model.cloudAccount)
+                .disabled(model.phase != .idle)
+            if !settings.useCloud {
             Section("百炼模型") {
                 LabeledContent("语音识别") {
                     Text("Fun-ASR Realtime")
@@ -443,10 +454,15 @@ private struct ProviderSettingsView: View {
                         .foregroundStyle(.secondary)
                 }
             }
+            }
         }
         .formStyle(.grouped)
         .scrollContentBackground(.hidden)
         .padding(.horizontal, 8)
+        .onChange(of: settings.useCloud) { _ in
+            model.clearDictationContext()
+            model.invalidateConnectionTest()
+        }
         .onChange(of: settings.funRegion) { _ in
             model.invalidateConnectionTest()
         }
@@ -558,7 +574,10 @@ private struct PrivacySettingsView: View {
     }
 
     private var providerDisclosure: String {
-        settings.cleanupEnabled
+        if settings.useCloud {
+            return "音频经 Ziki Cloud 转发至百炼北京 Fun-ASR；启用整理时，转写文字及已开启的有界近期上下文会发送给千问。服务器保存用量与运行元数据，不保存音频或全文历史。"
+        }
+        return settings.cleanupEnabled
             ? "音频会实时发送到阿里云 Fun-ASR Realtime；转写文字随后发送到同一百炼 Workspace 的 Qwen3.5 Flash 整理。" + (settings.contextEnabled ? "已启用近期上下文：最多 3 轮、合计 8000 字的先前识别与整理文字也会随请求发送，不是只在本地使用。" : "近期上下文已关闭。")
             : "音频会实时发送到阿里云 Fun-ASR Realtime；文字整理当前已关闭。"
     }

@@ -44,7 +44,15 @@ final class AppModel: ObservableObject {
         category: "dictation"
     )
 
+    private struct CloudCapture: Sendable {
+        let origin: URL
+        let token: String
+        let cleanupEnabled: Bool
+        let context: [DictationContext.Turn]
+    }
+
     private struct CaptureRequest: Sendable {
+        let cloud: CloudCapture?
         let provider: SpeechProviderKind
         let funRegion: FunRegion
         let funWorkspaceID: String
@@ -69,8 +77,11 @@ final class AppModel: ObservableObject {
     let historyStore: DictationHistoryStore
     let settingsNavigation: SettingsNavigationState
     let updater = AppUpdater()
+    let cloudAccount = CloudAccount()
     let outputMute: RecordingOutputMute
 
+    private var cloudChanges: AnyCancellable?
+    private var pendingCloudResult: CloudDictationResult?
     private var stateMachine = DictationStateMachine()
     private weak var overlayController: OverlayPanelController?
     private let settingsNavigationCoordinator: SettingsNavigationCoordinator
@@ -126,17 +137,21 @@ final class AppModel: ObservableObject {
             state: settingsNavigation,
             historyPurger: self.historyStore
         )
+        cloudChanges = cloudAccount.objectWillChange.sink { [weak self] in
+            self?.objectWillChange.send()
+        }
         insertionReadiness.wait = { [weak self] in
             await self?.waitUntilReadyForInsertion() ?? false
         }
     }
 
     var providerSummary: String {
-        settings.provider.title
+        settings.useCloud ? "Ziki Cloud" : settings.provider.title
     }
 
     var canStart: Bool {
-        switch settings.provider {
+        if settings.useCloud { return cloudAccount.canDictate }
+        return switch settings.provider {
         case .funASR:
             FunASRConfigurationPolicy.isReady(
                 hasAPIKey: funKeyConfigured,
@@ -158,6 +173,7 @@ final class AppModel: ObservableObject {
     func bootstrap() {
         permissions.refresh()
         Task { await refreshCredentialStatus() }
+        Task { await cloudAccount.restore() }
     }
 
     func shutdown() {
@@ -175,7 +191,7 @@ final class AppModel: ObservableObject {
         permissions.refresh()
         guard canStart else {
             transitionToFailure(
-                settings.provider == .funASR
+                settings.useCloud ? "Sign in to your Cloud account before dictating." : settings.provider == .funASR
                     ? "请先配置百炼 API Key 和 API Host"
                     : "请先配置语音服务 API Key"
             )
@@ -584,7 +600,18 @@ final class AppModel: ObservableObject {
             for: DefaultAudioInput.transportKind()
         )
         let provider = settings.provider
+        let cloud: CloudCapture?
+        if settings.useCloud {
+            guard cloudAccount.canDictate, let origin = cloudAccount.origin, let token = cloudAccount.token else {
+                transitionToFailure("Cloud account is unavailable. Sign in and try again.")
+                return
+            }
+            cloud = CloudCapture(origin: origin, token: token, cleanupEnabled: settings.cleanupEnabled,
+                                 context: settings.contextEnabled ? dictationContext.turns : [])
+        } else { cloud = nil }
+        pendingCloudResult = nil
         let request = CaptureRequest(
+            cloud: cloud,
             provider: provider,
             funRegion: settings.funRegion,
             funWorkspaceID: settings.funWorkspaceID,
@@ -599,24 +626,29 @@ final class AppModel: ObservableObject {
         activeSessionID = sessionID
         diagnosticSessionID = settings.diagnosticsEnabled ? sessionID : nil
         activeLatestASRText = ""
-        pendingHistoryProviderID = provider.rawValue
+        pendingHistoryProviderID = cloud == nil ? provider.rawValue : "ziki-cloud"
         if diagnosticSessionID != nil {
             diagnosticsStore.begin(
                 sessionID: sessionID,
-                providerID: provider.rawValue,
-                regionID: request.funRegion.rawValue,
+                providerID: pendingHistoryProviderID ?? provider.rawValue,
+                regionID: cloud == nil ? request.funRegion.rawValue : FunRegion.mainlandChina.rawValue,
                 sampleRate: request.configuration.sampleRate,
                 cleanupEnabled: settings.cleanupEnabled
             )
         }
-        let pipe = AsyncStream<Data>.makeStream(bufferingPolicy: .unbounded)
+        let pipe = AsyncStream<Data>.makeStream(bufferingPolicy: cloud == nil ? .unbounded : .bufferingOldest(512))
         pcmContinuation = pipe.continuation
 
         do {
             try outputMute.start(enabled: settings.muteOutputWhileRecording) {
                 try microphone.start(
-                    onPCM: { data in
-                        pipe.continuation.yield(data)
+                    onPCM: { [weak self] data in
+                        if case .dropped = pipe.continuation.yield(data) {
+                            Task { @MainActor [weak self] in
+                                guard self?.activeSessionID == sessionID else { return }
+                                self?.transitionToFailure("Cloud connection could not keep up with recording. Please try again.", sessionID: sessionID)
+                            }
+                        }
                     },
                     onLevel: { [weak self] level in
                         Task { @MainActor [weak self] in
@@ -689,34 +721,31 @@ final class AppModel: ObservableObject {
         stream: AsyncStream<Data>,
         sessionID: UUID
     ) async {
-        guard let apiKey = await credentialValue(for: request.credential),
-              !Task.isCancelled,
-              activeSessionID == sessionID
-        else {
-            if activeSessionID == sessionID {
-                diagnosticsStore.recordFailure(
-                    sessionID: sessionID,
-                    stage: "configuration",
-                    message: "API Key unavailable"
-                )
-                transitionToFailure("请先配置语音服务 API Key", sessionID: sessionID)
-            }
-            return
-        }
-
         let session: any ASRSession
-        switch request.provider {
-        case .funASR:
-            session = FunASRRealtimeSession(
-                apiKey: apiKey,
-                workspaceID: request.funWorkspaceID,
-                region: request.funRegion == .mainlandChina
-                    ? .mainlandChina
-                    : .singapore
-            )
-        case .miMo:
-            session = MiMoBatchSession(apiKey: apiKey)
+        if let cloud = request.cloud {
+            session = CloudASRSession(origin: cloud.origin, token: cloud.token,
+                                      cleanupEnabled: cloud.cleanupEnabled, context: cloud.context) { [weak self] in
+                Task { @MainActor [weak self] in
+                    guard let self, self.activeSessionID == sessionID, self.phase == .listening else { return }
+                    self.statusDetail = "Cloud allowance reached. Finishing your dictation."
+                    self.finishDictation()
+                }
+            }
+        } else {
+            guard let apiKey = await credentialValue(for: request.credential),
+                  !Task.isCancelled, activeSessionID == sessionID else {
+                if activeSessionID == sessionID { transitionToFailure("请先配置语音服务 API Key", sessionID: sessionID) }
+                return
+            }
+            switch request.provider {
+            case .funASR:
+                session = FunASRRealtimeSession(apiKey: apiKey, workspaceID: request.funWorkspaceID,
+                                                region: request.funRegion == .mainlandChina ? .mainlandChina : .singapore)
+            case .miMo:
+                session = MiMoBatchSession(apiKey: apiKey)
+            }
         }
+        guard !Task.isCancelled, activeSessionID == sessionID else { await session.cancel(); return }
         activeSession = session
 
         eventTask = Task { [weak self] in
@@ -794,24 +823,36 @@ final class AppModel: ObservableObject {
             )
 
         case let .completed(fullText, billedSeconds):
-            let transcript = fullText.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !transcript.isEmpty else {
-                completeSession(sessionID)
-                discardNoSpeech()
-                return
+            if let cloud = activeSession as? CloudASRSession {
+                Task { [weak self] in
+                    let result = await cloud.result()
+                    guard let self, self.activeSessionID == sessionID else { return }
+                    guard let result else { self.transitionToFailure("Cloud returned an incomplete result.", sessionID: sessionID); return }
+                    self.pendingCloudResult = result
+                    self.acceptTranscript(fullText, billedSeconds: billedSeconds, sessionID: sessionID)
+                    await self.cloudAccount.restore()
+                }
+            } else {
+                acceptTranscript(fullText, billedSeconds: billedSeconds, sessionID: sessionID)
             }
-            diagnosticsStore.recordASRCompletion(
-                sessionID: sessionID,
-                text: transcript,
-                billedSeconds: billedSeconds
-            )
-            completeSession(sessionID)
-            lastServiceError = nil
-            apply(.transcriptionSucceeded(transcript))
 
         case let .failed(failure):
             handleASRFailure(failure, sessionID: sessionID)
         }
+    }
+
+    private func acceptTranscript(_ fullText: String, billedSeconds: Double?, sessionID: UUID) {
+        if phase == .listening { finishDictation() }
+        let transcript = fullText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !transcript.isEmpty else {
+            completeSession(sessionID)
+            discardNoSpeech()
+            return
+        }
+        diagnosticsStore.recordASRCompletion(sessionID: sessionID, text: transcript, billedSeconds: billedSeconds)
+        completeSession(sessionID)
+        lastServiceError = nil
+        apply(.transcriptionSucceeded(transcript))
     }
 
     private func receiveTransportError(_ error: Error, from sessionID: UUID) {
@@ -849,6 +890,19 @@ final class AppModel: ObservableObject {
     private func polishTranscript(_ rawText: String) async {
         var finalText = rawText.trimmingCharacters(in: .whitespacesAndNewlines)
         let diagnosticSessionID = self.diagnosticSessionID
+        if let cloud = pendingCloudResult {
+            pendingCloudResult = nil
+            if settings.contextEnabled && settings.cleanupEnabled && !cloud.cleanupFailed {
+                dictationContext.append(raw: cloud.rawText, polished: cloud.text)
+            }
+            if cloud.cleanupFailed { statusDetail = "Cleanup unavailable; using transcript" }
+            if let diagnosticSessionID {
+                diagnosticsStore.recordCleanup(sessionID: diagnosticSessionID, candidate: cloud.text,
+                                               decision: cloud.cleanupFailed ? "cloud_use_original" : "cloud_completed", finalText: cloud.text)
+            }
+            apply(.transcriptPolished(cloud.text))
+            return
+        }
 
         if settings.cleanupEnabled,
            let route = BailianCleanupRoute.resolve(
@@ -1029,6 +1083,7 @@ final class AppModel: ObservableObject {
         activeSession = nil
         activeLatestASRText = ""
         pendingHistoryProviderID = nil
+        pendingCloudResult = nil
         diagnosticSessionID = nil
 
         _ = stopMicrophone()
@@ -1059,7 +1114,7 @@ final class AppModel: ObservableObject {
         case .unauthorized:
             ASRFailurePresenter.userMessage(
                 for: failure,
-                serviceName: settings.provider == .funASR ? "百炼" : "MiMo"
+                serviceName: settings.useCloud ? "Ziki Cloud" : settings.provider == .funASR ? "百炼" : "MiMo"
             )
         case .badInput:
             failure.message.contains("音频") || failure.message.contains("录到")

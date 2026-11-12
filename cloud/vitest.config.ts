@@ -17,7 +17,7 @@ export default defineConfig({
           // Explicit overrides also isolate a legacy .dev.vars from test requests.
           ENVIRONMENT: "local", CLOUD_ENABLED: "false", AUTH_ENABLED: "false",
           AUTH_ORIGIN: "http://127.0.0.1:8787",
-          GOOGLE_CLIENT_ID: "", GOOGLE_CLIENT_SECRET: "", BETTER_AUTH_SECRET: "",
+          BAILIAN_API_KEY: "", BAILIAN_WORKSPACE_ID: "", GOOGLE_CLIENT_ID: "", GOOGLE_CLIENT_SECRET: "", BETTER_AUTH_SECRET: "",
           EMAIL_LOGIN_ENABLED: "false", EMAIL_FROM: "login@getziki.com",
           TEST_MIGRATIONS: await readD1Migrations(path.join(root, "migrations")),
         },

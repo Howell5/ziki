@@ -1,6 +1,6 @@
-# Ziki Cloud — account foundation (not launched)
+# Ziki Cloud — account and bounded speech (not launched)
 
-This is **not a launched subscription service**. `/account` and `/device` display configuration-aware account UI. Auth/account API routes remain closed unless `AUTH_ENABLED=true` and an independent auth secret is set; speech and billing remain hard-closed regardless of flags. `/health` reports database reachability, not product readiness. No model key, fake login, payment, audio storage, or grant-creation endpoint is exposed.
+This is **not a launched subscription service**. `/account` and `/device` display configuration-aware account UI. Auth/account API routes remain closed unless `AUTH_ENABLED=true` and an independent auth secret is set; speech additionally requires `CLOUD_ENABLED=true`, `ENVIRONMENT=local|staging` and independent Bailian Beijing credentials. Production speech and all payment routes remain closed. `/health` reports database reachability, not product readiness. No model key, fake login, payment, audio storage, or grant-creation endpoint is exposed.
 
 ## Local development
 
@@ -14,7 +14,7 @@ cp -n .env.example .env
 chmod 600 .env
 ```
 
-The template explains each value, where to obtain it, exact local OAuth callbacks, and which sections can stay empty. Start with an independently generated `BETTER_AUTH_SECRET`, Google credentials, and the reserved Bailian Singapore credentials. Stripe can wait until the payment stage. **Bailian, model-test budget and Stripe fields are handoff placeholders, not implemented runtime features yet.**
+The template explains each value, where to obtain it, exact local OAuth callbacks, and which sections can stay empty. Start with an independently generated `BETTER_AUTH_SECRET`, Google credentials, and independent Bailian Beijing credentials. Stripe can wait until the payment stage. Bailian credentials now configure isolated speech processing; `CLOUD_ENABLED` stays false by default. Model-test budget is only a handoff record, not an enforced cost limit. Stripe remains unimplemented.
 
 模板中的中文注释已列明获取位置和必填/可留空项。填完后通知维护者即可，不需粘贴密钥或自行部署。邮件没有额外 API Key，但真实发送仍须开通 Cloudflare 发信能力、验证域名；仅改环境变量不能完成这一步。
 
@@ -67,13 +67,13 @@ The server-side OAuth flow requires the redirect URI, not merely the origin/doma
 
 Discord sign-in was removed on 2026-09-21. Any leftover `DISCORD_*` entries in a private local file are ignored and can be removed; no credential re-entry or database reset is needed.
 
-The browser uses same-origin HttpOnly cookies. A Mac must obtain `/api/auth/device/code`, open `/device`, display the user code, and poll `/api/auth/device/token` using the server interval. The user enters/reviews the code and explicitly approves or denies it. Merely opening a link never approves a device. Native UI/token storage and real provider roundtrips are still pending P2 work.
+The browser uses same-origin HttpOnly cookies. A Mac must obtain `/api/auth/device/code`, open `/device`, display the user code, and poll `/api/auth/device/token` using the server interval. The user enters/reviews the code and explicitly approves or denies it. Merely opening a link never approves a device. Native integration is maintained separately; real provider roundtrips are still required for staging acceptance.
 
 ## What is implemented
 
 - D1 grants with source uniqueness, validity periods and revocation; per-grant reservation allocations and append-only-by-application usage events.
 - Atomic reserve/allocation and conditional terminal transitions. One active dictation per user; one provider start claim; repeated settlement cannot charge twice.
-- Server-only accounting API. `settle` accepts measured audio duration from future provider orchestration, never client-reported seconds. No endpoint calls it yet.
+- Server-only accounting API. `settle` accepts byte-measured duration from the speech stream, never client-reported seconds.
 - Better Auth 1.7.4 D1 schema, conditional Google configuration, email OTP and device approval UI. Implemented adapters and local fixtures are **not live identity-provider verification**.
 - Eight-digit, five-minute, hashed, single-use OTP with three attempts. Atomic per-recipient email cooldown precedes OTP rotation; failed sending returns an error without logging recipients/codes/provider payloads.
 - Bounded auth bodies, no-store responses, explicit origin protection, no raw request/provider logging.
@@ -99,4 +99,25 @@ Official references checked 2026-09-13:
 - [Email OTP](https://better-auth.com/docs/plugins/email-otp)
 - [Cloudflare Email Service Workers sending API](https://developers.cloudflare.com/email-service/api/send-emails/workers-api/)
 
-Before public exposure, configure Google/email and independent Bailian Singapore credentials, complete native login and bounded hosted processing, verify edge/mail abuse controls and retention (including expired email cooldown rows), then pass authorized staging tests. Before charging, complete Stripe test-mode verification and approve prices, refund/partial-success rules and legal/licensing boundaries. Local fixtures do not satisfy those gates.
+Before public exposure, configure Google/email and independent Bailian Beijing credentials, validate native login and bounded hosted processing, verify edge/mail abuse controls and retention (including expired email cooldown rows), then pass authorized staging tests. Before charging, complete Stripe test-mode verification and approve prices, refund/partial-success rules and legal/licensing boundaries. Local fixtures do not satisfy those gates.
+
+## P2 speech contract (isolated local/staging only)
+
+`BAILIAN_API_KEY` is a server-only secret; `BAILIAN_WORKSPACE_ID` is the matching Beijing workspace ID (ASCII alphanumeric/hyphen, at most 63 characters). Hosts and models are fixed, never supplied by requests. No dependencies, Durable Objects or audio storage were added. A separate staging Wrangler configuration is still needed; the committed config is local-only.
+
+All speech routes require a Better Auth bearer session with verified email. Cookie-only requests, query parameters/tokens, explicit foreign Origins and other users' sessions are rejected. Auth remains separately gated. No grant, settle, payment, arbitrary proxy or public fixture endpoint exists.
+
+- `POST /v1/dictations`: exactly `{idempotencyKey: UUID, maxSeconds: 1..300}`; reserve up to eligible balance and replay the original reservation. Returns `{id,maxSeconds,status}`.
+- `GET /v1/dictations/:id`: only `{id,maxSeconds,status}`, never transcript data.
+- `POST /v1/dictations/:id/cancel`: conditional terminal transition and release; idempotent.
+- `GET /v1/dictations/:id/stream`: bearer WebSocket upgrade; only one atomic provider claim. Invalid upgrade releases an unclaimed reservation; a duplicate claim cannot interrupt the winning stream.
+
+First message is exactly `{type:"start",language:"auto"|"zh"|"en",cleanupEnabled:boolean,context:[{rawTranscript,polishedTranscript}]}`. Context is at most three turns and 8,000 Unicode code points combined. Wait for `ready` before audio. Send 16 kHz mono PCM16 little-endian binary frames, nonempty, even-length and at most 32,000 bytes. Total must not exceed `maxSeconds*32000`; at the limit send `{type:"finish"}` to retain the result. Excess bytes fail the stream and release its reservation. No client duration is accepted. `{type:"cancel"}` and socket close stop upstream immediately.
+
+Events are `ready`, `hypothesis`/`segmentFinal` (cumulative `text`), `completed` (`rawText,text,billedSeconds,cleanupFailed`) and `error` (finite `code` only). Completion is sent after conditional D1 settlement, at `ceil(receivedBytes/32000)` seconds; whitespace-only recognition costs zero. Cleanup runs once using Qwen3.5 Flash and the Swift conservative prompt, including its untrusted-context constraints. HTTP/format/empty/truncated/timeout cleanup failures return raw recognition. Text, context and audio are never persisted or logged.
+
+Bounds: client start 10s, provider start/finish 30s each, recording reserved duration + 10s, entire session reservation expiry (duration + 120s), cleanup 15s with a 20s stage guard. Client JSON <=32 KiB, provider JSON <=64 KiB, combined pending application messages <=256 KiB / 64 messages; cumulative transcript <=64,000 UTF-16 units and sentence IDs 0..4095. Strict state/format violations terminate the stream. Binary frame limits apply after runtime delivery: Workers buffers an incoming frame before the handler can validate it. See [Workers WebSocket binary delivery](https://developers.cloudflare.com/workers/runtime-apis/websockets/).
+
+An active stream polls D1 after each 1s delay; reads have a 2s deadline and fail closed. Thus remote REST cancellation has bounded polling/read latency, as approved in the architecture contract. Conditional settlement prevents charging when cancellation wins before settlement. A same-socket cancellation/close stops transport synchronously; release is retained with `waitUntil`. If D1 itself is unavailable, release cannot be guaranteed immediately; reservation expiry remains the durable fallback, reclaimed by the next balance/reserve/query operation.
+
+Tests use real workerd WebSocketPairs and D1 with a fixture fetch transport and controllable timers. D1 read-failure tests wrap only the failing read; accounting still uses real D1. They cover auth/origin/ownership, short-balance replay, concurrent claims, PCM bounds, queue bounds, cancellation and settlement races, state-read failures/deadlines, provider phases/errors, cleanup fallbacks and billing. Passing fixtures does not verify live provider schema, credentials, model quality, edge delivery latency or a physically separate deployed isolate. No real provider calls are authorized by tests or this README.
